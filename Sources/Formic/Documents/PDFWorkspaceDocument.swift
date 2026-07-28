@@ -23,7 +23,12 @@ final class PDFWorkspaceDocument: NSDocument {
         }
         session.title = displayName
 
-        let rootView = WorkspaceRootView(session: session)
+        let rootView = WorkspaceRootView(
+            session: session,
+            saveDocument: { [weak self] in
+                self?.saveFromRibbon()
+            }
+        )
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
 
@@ -37,6 +42,25 @@ final class PDFWorkspaceDocument: NSDocument {
         window.center()
 
         addWindowController(NSWindowController(window: window))
+    }
+
+    func saveFromRibbon(completionHandler: ((Error?) -> Void)? = nil) {
+        guard let fileURL else {
+            saveAs(nil)
+            return
+        }
+
+        save(
+            to: fileURL,
+            ofType: fileType ?? "com.adobe.pdf",
+            for: .saveOperation
+        ) { [weak self] error in
+            if let error {
+                self?.presentError(error)
+            }
+
+            completionHandler?(error)
+        }
     }
 
     override func read(from data: Data, ofType typeName: String) throws {

@@ -78,6 +78,7 @@ struct WorkspaceRibbonView: View {
     let inspectorVisible: Bool
     let toggleSidebar: () -> Void
     let toggleInspector: () -> Void
+    let saveDocument: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -218,10 +219,6 @@ struct WorkspaceRibbonView: View {
 
     private func openDocument() {
         NSDocumentController.shared.openDocument(nil)
-    }
-
-    private func saveDocument() {
-        NSApp.sendAction(#selector(NSDocument.save(_:)), to: nil, from: nil)
     }
 
     private func printDocument() {

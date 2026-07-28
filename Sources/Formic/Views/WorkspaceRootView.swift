@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WorkspaceRootView: View {
     @ObservedObject var session: PDFDocumentSession
+    let saveDocument: () -> Void
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var showsInspector = false
     @State private var ribbonTab: WorkspaceRibbonTab = .home
@@ -22,7 +23,8 @@ struct WorkspaceRootView: View {
                 sidebarVisible: columnVisibility != .detailOnly,
                 inspectorVisible: showsInspector,
                 toggleSidebar: toggleSidebar,
-                toggleInspector: { showsInspector.toggle() }
+                toggleInspector: { showsInspector.toggle() },
+                saveDocument: saveDocument
             )
 
             Divider()
