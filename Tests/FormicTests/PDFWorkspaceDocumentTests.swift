@@ -197,6 +197,55 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         try? FileManager.default.removeItem(at: destination)
     }
 
+    func testMovedNotePositionSurvivesSaveReopen() async throws {
+        let workspaceDocument = PDFWorkspaceDocument()
+        try workspaceDocument.read(from: makePDFData(), ofType: "com.adobe.pdf")
+        workspaceDocument.makeWindowControllers()
+
+        let document = try XCTUnwrap(workspaceDocument.session.document)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let note = PDFAnnotation(
+            bounds: NSRect(x: 72, y: 640, width: 24, height: 24),
+            forType: .text,
+            withProperties: nil
+        )
+        page.addAnnotation(note)
+        workspaceDocument.session.selectAnnotation(note)
+
+        XCTAssertNotNil(
+            workspaceDocument.session.beginMovingSelectedAnnotation(note, on: page)
+        )
+        let movedBounds = try XCTUnwrap(
+            workspaceDocument.session.previewSelectedAnnotationMove(
+                to: NSRect(x: 240, y: 420, width: 24, height: 24)
+            )
+        )
+        workspaceDocument.session.finishMovingSelectedAnnotation()
+        XCTAssertTrue(workspaceDocument.isDocumentEdited)
+
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("pdf")
+        workspaceDocument.fileURL = destination
+        let saveCompleted = expectation(description: "PDF with moved note saved")
+
+        workspaceDocument.saveFromRibbon(requiresConfirmation: false) { error in
+            XCTAssertNil(error)
+            saveCompleted.fulfill()
+        }
+        await fulfillment(of: [saveCompleted], timeout: 3)
+
+        let reopened = try XCTUnwrap(PDFDocument(url: destination))
+        let reopenedNote = try XCTUnwrap(
+            reopened.page(at: 0)?.annotations.first(where: { $0.type == "Text" })
+        )
+        XCTAssertEqual(reopenedNote.bounds.origin.x, movedBounds.origin.x, accuracy: 0.1)
+        XCTAssertEqual(reopenedNote.bounds.origin.y, movedBounds.origin.y, accuracy: 0.1)
+
+        workspaceDocument.close()
+        try? FileManager.default.removeItem(at: destination)
+    }
+
     private func makePDFData() throws -> Data {
         let image = NSImage(size: NSSize(width: 612, height: 792))
         image.lockFocus()

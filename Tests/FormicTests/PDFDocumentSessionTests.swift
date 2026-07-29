@@ -132,6 +132,7 @@ final class PDFDocumentSessionTests: XCTestCase {
         XCTAssertEqual(selection.pageNumber, 2)
         XCTAssertEqual(selection.author, "Formic Tester")
         XCTAssertTrue(selection.canEditAppearance)
+        XCTAssertFalse(selection.canMove)
         XCTAssertTrue(selection.canDelete)
 
         session.selectAnnotation(nil)
@@ -226,6 +227,78 @@ final class PDFDocumentSessionTests: XCTestCase {
         session.redo()
         XCTAssertEqual(note.contents, "Updated note")
         XCTAssertEqual(note.userName, "Updated Author")
+    }
+
+    func testMovingSelectedNoteClampsToPageAndSupportsUndoAndRedo() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 1)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let pageBounds = page.bounds(for: .cropBox)
+        let originalBounds = NSRect(x: 72, y: 640, width: 24, height: 24)
+        let note = PDFAnnotation(
+            bounds: originalBounds,
+            forType: .text,
+            withProperties: nil
+        )
+        page.addAnnotation(note)
+        let undoManager = UndoManager()
+        var changes: [NSDocument.ChangeType] = []
+
+        session.replaceDocument(document)
+        session.configureEditing(undoManager: undoManager) { changes.append($0) }
+        session.selectAnnotation(note)
+
+        XCTAssertTrue(try XCTUnwrap(session.annotationSelection).canMove)
+        XCTAssertEqual(
+            session.beginMovingSelectedAnnotation(note, on: page),
+            originalBounds
+        )
+
+        let movedBounds = try XCTUnwrap(
+            session.previewSelectedAnnotationMove(
+                to: originalBounds.offsetBy(dx: 2_000, dy: 2_000)
+            )
+        )
+        XCTAssertEqual(movedBounds.maxX, pageBounds.maxX, accuracy: 0.1)
+        XCTAssertEqual(movedBounds.maxY, pageBounds.maxY, accuracy: 0.1)
+        XCTAssertTrue(changes.isEmpty)
+
+        session.finishMovingSelectedAnnotation()
+
+        XCTAssertEqual(changes.last, .changeDone)
+        XCTAssertTrue(session.canUndo)
+
+        session.undo()
+        XCTAssertEqual(note.bounds, originalBounds)
+        XCTAssertEqual(changes.last, .changeUndone)
+        XCTAssertTrue(session.canRedo)
+
+        session.redo()
+        XCTAssertEqual(note.bounds, movedBounds)
+        XCTAssertEqual(changes.last, .changeRedone)
+    }
+
+    func testFinishingUnchangedNoteMoveDoesNotCreateDocumentEdit() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 1)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let note = PDFAnnotation(
+            bounds: NSRect(x: 72, y: 640, width: 24, height: 24),
+            forType: .text,
+            withProperties: nil
+        )
+        page.addAnnotation(note)
+        let undoManager = UndoManager()
+        var changes: [NSDocument.ChangeType] = []
+
+        session.replaceDocument(document)
+        session.configureEditing(undoManager: undoManager) { changes.append($0) }
+        session.selectAnnotation(note)
+        XCTAssertNotNil(session.beginMovingSelectedAnnotation(note, on: page))
+        session.finishMovingSelectedAnnotation()
+
+        XCTAssertTrue(changes.isEmpty)
+        XCTAssertFalse(session.canUndo)
     }
 
     func testAnnotationColorChangesSupportUndoAndRedo() throws {
