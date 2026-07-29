@@ -104,6 +104,19 @@ struct WorkspaceRibbonView: View {
 
     private var annotateTools: some View {
         Group {
+            RibbonGroup(title: "Add") {
+                RibbonToolButton(
+                    "Note",
+                    systemImage: "note.text.badge.plus",
+                    isActive: session.annotationTool == .note,
+                    action: session.toggleNoteTool
+                )
+                .disabled(!session.allowsCommenting)
+                .help(noteToolHelp)
+            }
+
+            RibbonSeparator()
+
             RibbonGroup(title: "Text markup") {
                 ForEach(TextMarkupStyle.allCases) { style in
                     RibbonToolButton(
@@ -123,7 +136,9 @@ struct WorkspaceRibbonView: View {
                     title: selectionStatusTitle,
                     detail: selectionStatusDetail,
                     systemImage: selectionStatusImage,
-                    isReady: session.canApplyTextMarkup || session.hasSelectedAnnotation
+                    isReady: session.annotationTool == .note
+                        || session.canApplyTextMarkup
+                        || session.hasSelectedAnnotation
                 )
 
                 if session.hasSelectedAnnotation {
@@ -275,9 +290,22 @@ struct WorkspaceRibbonView: View {
         return "Apply markup to the selected text"
     }
 
+    private var noteToolHelp: String {
+        if !session.allowsCommenting {
+            return "This PDF does not allow annotations"
+        }
+        if session.annotationTool == .note {
+            return "Cancel note placement"
+        }
+        return "Add a note by clicking on a page"
+    }
+
     private var selectionStatusTitle: String {
         if !session.allowsCommenting {
             return "Read-only PDF"
+        }
+        if session.annotationTool == .note {
+            return "Place a note"
         }
         if let annotation = session.annotationSelection {
             return "\(annotation.typeName) selected"
@@ -289,6 +317,9 @@ struct WorkspaceRibbonView: View {
         if !session.allowsCommenting {
             return "Annotations aren't permitted"
         }
+        if session.annotationTool == .note {
+            return "Click anywhere on a page"
+        }
         if session.hasSelectedAnnotation {
             return "Edit it in the Details panel"
         }
@@ -298,6 +329,9 @@ struct WorkspaceRibbonView: View {
     private var selectionStatusImage: String {
         if !session.allowsCommenting {
             return "lock.fill"
+        }
+        if session.annotationTool == .note {
+            return "note.text.badge.plus"
         }
         if session.hasSelectedAnnotation {
             return "selection.pin.in.out"

@@ -61,9 +61,24 @@ struct DocumentInspectorView: View {
         InspectorCard(title: "Selected annotation", systemImage: "selection.pin.in.out") {
             InspectorRow(label: "Type", value: selection.typeName)
             InspectorRow(label: "Page", value: "\(selection.pageNumber)")
-            InspectorRow(label: "Author", value: selection.author ?? "Not specified")
+
+            if !selection.isNote {
+                InspectorRow(label: "Author", value: selection.author ?? "Not specified")
+            }
 
             Divider()
+
+            if selection.isNote {
+                NoteAnnotationEditor(
+                    contents: selection.contents,
+                    author: selection.author ?? "",
+                    isEditable: selection.canEditText,
+                    applyChanges: session.updateSelectedNote
+                )
+                .id(selection.id)
+
+                Divider()
+            }
 
             VStack(alignment: .leading, spacing: 9) {
                 Text("COLOR")
@@ -124,6 +139,105 @@ struct DocumentInspectorView: View {
 
     private func allowed(_ value: Bool) -> String {
         value ? "Allowed" : "Restricted"
+    }
+}
+
+private struct NoteAnnotationEditor: View {
+    let contents: String
+    let author: String
+    let isEditable: Bool
+    let applyChanges: (String, String) -> Void
+
+    @State private var draftContents: String
+    @State private var draftAuthor: String
+
+    init(
+        contents: String,
+        author: String,
+        isEditable: Bool,
+        applyChanges: @escaping (String, String) -> Void
+    ) {
+        self.contents = contents
+        self.author = author
+        self.isEditable = isEditable
+        self.applyChanges = applyChanges
+        _draftContents = State(initialValue: contents)
+        _draftAuthor = State(initialValue: author)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                inspectorLabel("NOTE")
+
+                ZStack(alignment: .topLeading) {
+                    if draftContents.isEmpty {
+                        Text("Write a note…")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 9)
+                            .allowsHitTesting(false)
+                    }
+
+                    TextEditor(text: $draftContents)
+                        .font(.system(size: 11))
+                        .scrollContentBackground(.hidden)
+                        .padding(4)
+                }
+                .frame(minHeight: 82)
+                .background(.background.opacity(0.58), in: RoundedRectangle(cornerRadius: 7))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(.separator.opacity(0.65), lineWidth: 1)
+                }
+                .disabled(!isEditable)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                inspectorLabel("AUTHOR")
+                TextField("Not specified", text: $draftAuthor)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11))
+                    .disabled(!isEditable)
+            }
+
+            HStack {
+                if !isEditable {
+                    Label("Read-only", systemImage: "lock.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button("Apply Changes") {
+                    applyChanges(draftContents, draftAuthor)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(!isEditable || !hasChanges)
+            }
+        }
+        .onChange(of: contents) { _, newValue in
+            draftContents = newValue
+        }
+        .onChange(of: author) { _, newValue in
+            draftAuthor = newValue
+        }
+    }
+
+    private var hasChanges: Bool {
+        draftContents != contents
+            || draftAuthor.trimmingCharacters(in: .whitespacesAndNewlines)
+                != author.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func inspectorLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 9, weight: .semibold))
+            .tracking(0.5)
+            .foregroundStyle(.tertiary)
     }
 }
 

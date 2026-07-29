@@ -90,6 +90,16 @@ enum MainMenu {
         let menu = NSMenu(title: "Annotate")
         item.submenu = menu
 
+        let addNote = menu.addItem(
+            withTitle: "Add Note",
+            action: #selector(AppDelegate.activateNoteTool(_:)),
+            keyEquivalent: "n"
+        )
+        addNote.keyEquivalentModifierMask = [.command, .option]
+        addNote.target = actionTarget
+
+        menu.addItem(.separator())
+
         let highlight = menu.addItem(
             withTitle: "Highlight Selection",
             action: #selector(AppDelegate.highlightSelection(_:)),

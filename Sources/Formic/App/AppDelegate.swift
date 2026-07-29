@@ -82,6 +82,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     @objc
+    func activateNoteTool(_ sender: Any?) {
+        currentPDFDocument?.session.activateNoteTool()
+    }
+
+    @objc
     func deleteSelectedAnnotation(_ sender: Any?) {
         currentPDFDocument?.session.deleteSelectedAnnotation()
     }
@@ -96,6 +101,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
              #selector(underlineSelection(_:)),
              #selector(strikeOutSelection(_:)):
             return currentPDFDocument?.session.canApplyTextMarkup == true
+        case #selector(activateNoteTool(_:)):
+            return currentPDFDocument?.session.allowsCommenting == true
         case #selector(deleteSelectedAnnotation(_:)):
             return currentPDFDocument?.session.annotationSelection?.canDelete == true
         default:

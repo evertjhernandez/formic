@@ -138,6 +138,96 @@ final class PDFDocumentSessionTests: XCTestCase {
         XCTAssertNil(session.annotationSelection)
     }
 
+    func testPlacingNoteCreatesSelectedUndoableAnnotation() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 1)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let pageBounds = page.bounds(for: .cropBox)
+        let undoManager = UndoManager()
+        var changes: [NSDocument.ChangeType] = []
+
+        session.replaceDocument(document)
+        session.configureEditing(undoManager: undoManager) { changes.append($0) }
+        session.activateNoteTool()
+
+        XCTAssertEqual(session.annotationTool, .note)
+        session.placeNote(on: page, at: NSPoint(x: pageBounds.midX, y: pageBounds.midY))
+
+        let note = try XCTUnwrap(page.annotations.first(where: { $0.type == "Text" }))
+        XCTAssertEqual(note.type, "Text")
+        XCTAssertEqual(note.iconType, .note)
+        XCTAssertTrue(pageBounds.contains(note.bounds))
+        XCTAssertEqual(session.annotationTool, .selection)
+        XCTAssertTrue(try XCTUnwrap(session.annotationSelection).isNote)
+        XCTAssertEqual(changes.last, .changeDone)
+
+        session.undo()
+        XCTAssertTrue(page.annotations.isEmpty)
+        XCTAssertNil(session.annotationSelection)
+
+        session.redo()
+        XCTAssertEqual(page.annotations.filter { $0.type == "Text" }.count, 1)
+        XCTAssertTrue(try XCTUnwrap(session.annotationSelection).isNote)
+
+        session.undo()
+        XCTAssertTrue(page.annotations.isEmpty)
+        XCTAssertNil(session.annotationSelection)
+    }
+
+    func testNotePlacementClampsIconInsidePageBounds() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 1)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let pageBounds = page.bounds(for: .cropBox)
+
+        session.replaceDocument(document)
+        session.configureEditing(undoManager: UndoManager()) { _ in }
+        session.activateNoteTool()
+        session.placeNote(
+            on: page,
+            at: NSPoint(x: pageBounds.minX - 500, y: pageBounds.maxY + 500)
+        )
+
+        let noteBounds = try XCTUnwrap(page.annotations.first(where: { $0.type == "Text" })).bounds
+        XCTAssertGreaterThanOrEqual(noteBounds.minX, pageBounds.minX)
+        XCTAssertGreaterThanOrEqual(noteBounds.minY, pageBounds.minY)
+        XCTAssertLessThanOrEqual(noteBounds.maxX, pageBounds.maxX)
+        XCTAssertLessThanOrEqual(noteBounds.maxY, pageBounds.maxY)
+    }
+
+    func testEditingSelectedNoteSupportsUndoAndRedo() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 1)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let note = PDFAnnotation(
+            bounds: NSRect(x: 72, y: 640, width: 24, height: 24),
+            forType: .text,
+            withProperties: nil
+        )
+        note.contents = "Original note"
+        note.userName = "Original Author"
+        page.addAnnotation(note)
+        let undoManager = UndoManager()
+
+        session.replaceDocument(document)
+        session.configureEditing(undoManager: undoManager) { _ in }
+        session.selectAnnotation(note)
+        session.updateSelectedNote(contents: "Updated note", author: "Updated Author")
+
+        XCTAssertEqual(note.contents, "Updated note")
+        XCTAssertEqual(note.userName, "Updated Author")
+        XCTAssertEqual(session.annotationSelection?.contents, "Updated note")
+        XCTAssertEqual(session.annotationSelection?.author, "Updated Author")
+
+        session.undo()
+        XCTAssertEqual(note.contents, "Original note")
+        XCTAssertEqual(note.userName, "Original Author")
+
+        session.redo()
+        XCTAssertEqual(note.contents, "Updated note")
+        XCTAssertEqual(note.userName, "Updated Author")
+    }
+
     func testAnnotationColorChangesSupportUndoAndRedo() throws {
         let session = PDFDocumentSession()
         let document = makeDocument(pageCount: 1)
