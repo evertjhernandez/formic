@@ -155,7 +155,7 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         workspaceDocument.session.placeNote(on: page, at: NSPoint(x: 180, y: 560))
         XCTAssertNotNil(page.annotations.first(where: { $0.type == "Text" }))
         workspaceDocument.session.updateSelectedNote(
-            contents: "Review this section before publishing.",
+            contents: "Review this section before publishing.\nConfirm the final wording.",
             author: "Formic Reviewer"
         )
 
@@ -186,7 +186,10 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         )
         XCTAssertEqual(note.type, "Text")
         XCTAssertEqual(note.iconType, .note)
-        XCTAssertEqual(note.contents, "Review this section before publishing.")
+        XCTAssertEqual(
+            note.contents,
+            "Review this section before publishing.\nConfirm the final wording."
+        )
         XCTAssertEqual(note.userName, "Formic Reviewer")
         XCTAssertEqual(note.bounds.origin.x, 168, accuracy: 0.1)
         XCTAssertEqual(note.bounds.origin.y, 548, accuracy: 0.1)

@@ -177,28 +177,19 @@ private struct NoteAnnotationEditor: View {
             VStack(alignment: .leading, spacing: 6) {
                 inspectorLabel("NOTE")
 
-                ZStack(alignment: .topLeading) {
-                    if draftContents.isEmpty {
-                        Text("Write a note…")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 9)
-                            .allowsHitTesting(false)
+                TextField("Write a note…", text: $draftContents, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11))
+                    .lineLimit(4...8)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 7)
+                    .frame(minHeight: 82, alignment: .topLeading)
+                    .background(.background.opacity(0.58), in: RoundedRectangle(cornerRadius: 7))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 7)
+                            .stroke(.separator.opacity(0.65), lineWidth: 1)
                     }
-
-                    TextEditor(text: $draftContents)
-                        .font(.system(size: 11))
-                        .scrollContentBackground(.hidden)
-                        .padding(4)
-                }
-                .frame(minHeight: 82)
-                .background(.background.opacity(0.58), in: RoundedRectangle(cornerRadius: 7))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 7)
-                        .stroke(.separator.opacity(0.65), lineWidth: 1)
-                }
-                .disabled(!isEditable)
+                    .disabled(!isEditable)
             }
 
             VStack(alignment: .leading, spacing: 6) {

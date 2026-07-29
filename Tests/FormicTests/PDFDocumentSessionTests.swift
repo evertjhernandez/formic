@@ -213,11 +213,12 @@ final class PDFDocumentSessionTests: XCTestCase {
         session.replaceDocument(document)
         session.configureEditing(undoManager: undoManager) { _ in }
         session.selectAnnotation(note)
-        session.updateSelectedNote(contents: "Updated note", author: "Updated Author")
+        let updatedContents = "Updated note\nSecond line"
+        session.updateSelectedNote(contents: updatedContents, author: "Updated Author")
 
-        XCTAssertEqual(note.contents, "Updated note")
+        XCTAssertEqual(note.contents, updatedContents)
         XCTAssertEqual(note.userName, "Updated Author")
-        XCTAssertEqual(session.annotationSelection?.contents, "Updated note")
+        XCTAssertEqual(session.annotationSelection?.contents, updatedContents)
         XCTAssertEqual(session.annotationSelection?.author, "Updated Author")
 
         session.undo()
@@ -225,7 +226,7 @@ final class PDFDocumentSessionTests: XCTestCase {
         XCTAssertEqual(note.userName, "Original Author")
 
         session.redo()
-        XCTAssertEqual(note.contents, "Updated note")
+        XCTAssertEqual(note.contents, updatedContents)
         XCTAssertEqual(note.userName, "Updated Author")
     }
 
