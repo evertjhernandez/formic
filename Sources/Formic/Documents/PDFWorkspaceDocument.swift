@@ -14,6 +14,7 @@ final class PDFWorkspaceDocument: NSDocument {
     override init() {
         super.init()
         hasUndoManager = true
+        session.configureEditing(undoManager: undoManager)
     }
 
     override class var autosavesInPlace: Bool {

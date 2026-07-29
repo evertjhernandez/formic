@@ -57,6 +57,16 @@ struct PDFCanvasView: NSViewRepresentable {
                     self.session.setCurrentPage(self.pdfView?.currentPage)
                 }
             )
+
+            observers.append(
+                NotificationCenter.default.addObserver(
+                    forName: .PDFViewSelectionChanged,
+                    object: pdfView,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.session.syncTextSelection()
+                }
+            )
         }
 
         func detach() {

@@ -59,6 +59,72 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         try? FileManager.default.removeItem(at: destination)
     }
 
+    func testTextMarkupMarksDocumentEditedAndSurvivesSaveReopen() async throws {
+        let source = try makeSearchablePDFData(text: "Formic annotation persistence")
+        let workspaceDocument = PDFWorkspaceDocument()
+        try workspaceDocument.read(from: source, ofType: "com.adobe.pdf")
+        workspaceDocument.makeWindowControllers()
+
+        let document = try XCTUnwrap(workspaceDocument.session.document)
+        let pdfView = PDFView()
+        pdfView.document = document
+        workspaceDocument.session.viewBridge.attach(pdfView)
+        let selection = try XCTUnwrap(document.findString("annotation", withOptions: []).first)
+        pdfView.setCurrentSelection(selection, animate: false)
+        workspaceDocument.session.syncTextSelection()
+
+        XCTAssertEqual(workspaceDocument.session.applyTextMarkup(.underline), 1)
+        let changeRegistered = expectation(description: "Undoable annotation change registered")
+        DispatchQueue.main.async {
+            changeRegistered.fulfill()
+        }
+        await fulfillment(of: [changeRegistered], timeout: 1)
+        XCTAssertTrue(workspaceDocument.isDocumentEdited)
+        XCTAssertTrue(workspaceDocument.session.hasUnsavedChanges)
+
+        workspaceDocument.session.undo()
+        let undoRegistered = expectation(description: "Annotation undo registered")
+        DispatchQueue.main.async {
+            undoRegistered.fulfill()
+        }
+        await fulfillment(of: [undoRegistered], timeout: 1)
+        XCTAssertFalse(workspaceDocument.isDocumentEdited)
+        XCTAssertFalse(workspaceDocument.session.hasUnsavedChanges)
+
+        workspaceDocument.session.redo()
+        let redoRegistered = expectation(description: "Annotation redo registered")
+        DispatchQueue.main.async {
+            redoRegistered.fulfill()
+        }
+        await fulfillment(of: [redoRegistered], timeout: 1)
+        XCTAssertTrue(workspaceDocument.isDocumentEdited)
+        XCTAssertTrue(workspaceDocument.session.hasUnsavedChanges)
+
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("pdf")
+        workspaceDocument.fileURL = destination
+        let saveCompleted = expectation(description: "Annotated PDF saved")
+
+        workspaceDocument.saveFromRibbon { error in
+            XCTAssertNil(error)
+            saveCompleted.fulfill()
+        }
+        await fulfillment(of: [saveCompleted], timeout: 3)
+
+        let reopened = try XCTUnwrap(PDFDocument(url: destination))
+        XCTAssertEqual(reopened.page(at: 0)?.annotations.count, 1)
+        XCTAssertEqual(
+            reopened.page(at: 0)?.annotations.first?.type,
+            "Underline"
+        )
+        XCTAssertFalse(workspaceDocument.isDocumentEdited)
+        XCTAssertFalse(workspaceDocument.session.hasUnsavedChanges)
+
+        workspaceDocument.close()
+        try? FileManager.default.removeItem(at: destination)
+    }
+
     private func makePDFData() throws -> Data {
         let image = NSImage(size: NSSize(width: 612, height: 792))
         image.lockFocus()
@@ -70,5 +136,35 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         let page = try XCTUnwrap(PDFPage(image: image))
         document.insert(page, at: 0)
         return try XCTUnwrap(document.dataRepresentation())
+    }
+
+    private func makeSearchablePDFData(text: String) throws -> Data {
+        let bounds = NSRect(x: 0, y: 0, width: 612, height: 792)
+        let view = WorkspaceTestPageView(frame: bounds, text: text)
+        return view.dataWithPDF(inside: bounds)
+    }
+}
+
+private final class WorkspaceTestPageView: NSView {
+    private let text: String
+
+    init(frame frameRect: NSRect, text: String) {
+        self.text = text
+        super.init(frame: frameRect)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.white.setFill()
+        bounds.fill()
+        NSColor.black.setFill()
+        NSString(string: text).draw(
+            at: NSPoint(x: 72, y: bounds.height - 72),
+            withAttributes: [.font: NSFont.systemFont(ofSize: 18)]
+        )
     }
 }

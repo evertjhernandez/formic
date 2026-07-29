@@ -9,6 +9,7 @@ enum MainMenu {
         addApplicationMenu(to: mainMenu, settingsTarget: settingsTarget)
         addFileMenu(to: mainMenu, actionTarget: settingsTarget)
         addEditMenu(to: mainMenu)
+        addAnnotateMenu(to: mainMenu, actionTarget: settingsTarget)
         addWindowMenu(to: mainMenu)
         addHelpMenu(to: mainMenu)
     }
@@ -80,6 +81,38 @@ enum MainMenu {
         menu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         menu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         menu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+    }
+
+    private static func addAnnotateMenu(to mainMenu: NSMenu, actionTarget: AnyObject) {
+        let item = NSMenuItem()
+        mainMenu.addItem(item)
+
+        let menu = NSMenu(title: "Annotate")
+        item.submenu = menu
+
+        let highlight = menu.addItem(
+            withTitle: "Highlight Selection",
+            action: #selector(AppDelegate.highlightSelection(_:)),
+            keyEquivalent: "h"
+        )
+        highlight.keyEquivalentModifierMask = [.command, .option]
+        highlight.target = actionTarget
+
+        let underline = menu.addItem(
+            withTitle: "Underline Selection",
+            action: #selector(AppDelegate.underlineSelection(_:)),
+            keyEquivalent: "u"
+        )
+        underline.keyEquivalentModifierMask = [.command, .option]
+        underline.target = actionTarget
+
+        let strikeOut = menu.addItem(
+            withTitle: "Strike Out Selection",
+            action: #selector(AppDelegate.strikeOutSelection(_:)),
+            keyEquivalent: "s"
+        )
+        strikeOut.keyEquivalentModifierMask = [.command, .option]
+        strikeOut.target = actionTarget
     }
 
     private static func addWindowMenu(to mainMenu: NSMenu) {

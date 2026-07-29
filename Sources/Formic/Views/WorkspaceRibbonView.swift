@@ -86,6 +86,8 @@ struct WorkspaceRibbonView: View {
             switch selectedTab {
             case .home:
                 homeTools
+            case .annotate:
+                annotateTools
             case .view:
                 viewTools
             case .find:
@@ -98,6 +100,42 @@ struct WorkspaceRibbonView: View {
         .padding(.vertical, 7)
         .frame(height: 76)
         .background(.ultraThinMaterial)
+    }
+
+    private var annotateTools: some View {
+        Group {
+            RibbonGroup(title: "Text markup") {
+                ForEach(TextMarkupStyle.allCases) { style in
+                    RibbonToolButton(
+                        style.displayName,
+                        systemImage: style.systemImage,
+                        action: { session.applyTextMarkup(style) }
+                    )
+                    .disabled(!session.canApplyTextMarkup)
+                    .help(markupHelp)
+                }
+            }
+
+            RibbonSeparator()
+
+            RibbonGroup(title: "Selection") {
+                RibbonSelectionStatus(
+                    title: selectionStatusTitle,
+                    detail: selectionStatusDetail,
+                    systemImage: selectionStatusImage,
+                    isReady: session.canApplyTextMarkup
+                )
+            }
+
+            RibbonSeparator()
+
+            RibbonGroup(title: "History") {
+                RibbonToolButton("Undo", systemImage: "arrow.uturn.backward", action: session.undo)
+                    .disabled(!session.canUndo)
+                RibbonToolButton("Redo", systemImage: "arrow.uturn.forward", action: session.redo)
+                    .disabled(!session.canRedo)
+            }
+        }
     }
 
     private var homeTools: some View {
@@ -219,6 +257,37 @@ struct WorkspaceRibbonView: View {
     private var resultLabel: String {
         guard !session.searchResults.isEmpty else { return "No results" }
         return "Result \((session.selectedSearchResultIndex ?? 0) + 1) of \(session.searchResults.count)"
+    }
+
+    private var markupHelp: String {
+        if !session.allowsCommenting {
+            return "This PDF does not allow annotations"
+        }
+        if !session.hasTextSelection {
+            return "Select text on a page first"
+        }
+        return "Apply markup to the selected text"
+    }
+
+    private var selectionStatusTitle: String {
+        if !session.allowsCommenting {
+            return "Read-only PDF"
+        }
+        return session.hasTextSelection ? "Text selected" : "Select text"
+    }
+
+    private var selectionStatusDetail: String {
+        if !session.allowsCommenting {
+            return "Annotations aren't permitted"
+        }
+        return session.hasTextSelection ? "Choose a markup style" : "Drag across text on the page"
+    }
+
+    private var selectionStatusImage: String {
+        if !session.allowsCommenting {
+            return "lock.fill"
+        }
+        return session.hasTextSelection ? "checkmark.circle.fill" : "text.cursor"
     }
 
     private var saveButtonTitle: String {
@@ -351,5 +420,32 @@ private struct RibbonSeparator: View {
         Divider()
             .frame(height: 48)
             .padding(.horizontal, 5)
+    }
+}
+
+private struct RibbonSelectionStatus: View {
+    let title: String
+    let detail: String
+    let systemImage: String
+    let isReady: Bool
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(isReady ? FormicTheme.accent : .secondary)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                Text(detail)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 190, height: 36, alignment: .leading)
+        .padding(.horizontal, 10)
+        .background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
