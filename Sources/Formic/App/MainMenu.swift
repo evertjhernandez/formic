@@ -7,7 +7,7 @@ enum MainMenu {
         NSApp.mainMenu = mainMenu
 
         addApplicationMenu(to: mainMenu, settingsTarget: settingsTarget)
-        addFileMenu(to: mainMenu)
+        addFileMenu(to: mainMenu, actionTarget: settingsTarget)
         addEditMenu(to: mainMenu)
         addWindowMenu(to: mainMenu)
         addHelpMenu(to: mainMenu)
@@ -36,7 +36,7 @@ enum MainMenu {
         menu.addItem(withTitle: "Quit Formic", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     }
 
-    private static func addFileMenu(to mainMenu: NSMenu) {
+    private static func addFileMenu(to mainMenu: NSMenu, actionTarget: AnyObject) {
         let item = NSMenuItem()
         mainMenu.addItem(item)
 
@@ -48,10 +48,17 @@ enum MainMenu {
 
         menu.addItem(.separator())
         menu.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        menu.addItem(withTitle: "Save", action: #selector(NSDocument.save(_:)), keyEquivalent: "s")
 
-        let saveAs = menu.addItem(withTitle: "Save As…", action: #selector(NSDocument.saveAs(_:)), keyEquivalent: "S")
-        saveAs.keyEquivalentModifierMask = [.command, .shift]
+        let save = menu.addItem(withTitle: "Save", action: #selector(AppDelegate.saveCurrentDocument(_:)), keyEquivalent: "s")
+        save.target = actionTarget
+
+        let saveCopy = menu.addItem(withTitle: "Save a Copy…", action: #selector(AppDelegate.saveCurrentDocumentAsCopy(_:)), keyEquivalent: "S")
+        saveCopy.keyEquivalentModifierMask = [.command, .shift]
+        saveCopy.target = actionTarget
+
+        let export = menu.addItem(withTitle: "Export…", action: #selector(AppDelegate.exportCurrentDocument(_:)), keyEquivalent: "E")
+        export.keyEquivalentModifierMask = [.command, .shift]
+        export.target = actionTarget
 
         menu.addItem(.separator())
         menu.addItem(withTitle: "Print…", action: #selector(NSDocument.printDocument(_:)), keyEquivalent: "p")

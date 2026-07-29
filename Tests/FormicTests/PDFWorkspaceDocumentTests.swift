@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class PDFWorkspaceDocumentTests: XCTestCase {
-    func testSaveFromRibbonWritesAndReopensCurrentDocument() async throws {
+    func testSaveFromRibbonDoesNotRewriteUnchangedDocument() throws {
         let source = try makePDFData()
         let workspaceDocument = PDFWorkspaceDocument()
         try workspaceDocument.read(from: source, ofType: "com.adobe.pdf")
@@ -14,6 +14,30 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("pdf")
         workspaceDocument.fileURL = destination
+
+        var completionCalled = false
+        workspaceDocument.saveFromRibbon { error in
+            XCTAssertNil(error)
+            completionCalled = true
+        }
+
+        XCTAssertTrue(completionCalled)
+        XCTAssertEqual(workspaceDocument.session.saveState, .idle)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+    }
+
+    func testSaveFromRibbonWritesChangedDocument() async throws {
+        let source = try makePDFData()
+        let workspaceDocument = PDFWorkspaceDocument()
+        try workspaceDocument.read(from: source, ofType: "com.adobe.pdf")
+
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("pdf")
+        workspaceDocument.fileURL = destination
+        workspaceDocument.updateChangeCount(.changeDone)
+
+        XCTAssertTrue(workspaceDocument.session.hasUnsavedChanges)
 
         let saveCompleted = expectation(description: "Ribbon save completed")
         var saveError: Error?
@@ -27,6 +51,7 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         await fulfillment(of: [saveCompleted], timeout: 3)
         XCTAssertNil(saveError)
         XCTAssertEqual(workspaceDocument.session.saveState, .saved)
+        XCTAssertFalse(workspaceDocument.session.hasUnsavedChanges)
 
         let reopened = try XCTUnwrap(PDFDocument(url: destination))
         XCTAssertEqual(reopened.pageCount, 1)

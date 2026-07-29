@@ -78,6 +78,8 @@ struct WorkspaceRibbonView: View {
     let toggleSidebar: () -> Void
     let toggleInspector: () -> Void
     let saveDocument: () -> Void
+    let saveDocumentCopy: () -> Void
+    let showExportSheet: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -108,7 +110,12 @@ struct WorkspaceRibbonView: View {
                     isActive: session.saveState == .saved,
                     action: saveDocument
                 )
-                .disabled(session.saveState == .saving)
+                .disabled(!session.hasUnsavedChanges || session.saveState == .saving)
+                .help(session.hasUnsavedChanges ? "Save changes to this PDF" : "No changes to save")
+                RibbonToolButton("Save a Copy", systemImage: "doc.on.doc", action: saveDocumentCopy)
+                    .help("Create an identical PDF without changing the open file")
+                RibbonToolButton("Export", systemImage: "square.and.arrow.up", action: showExportSheet)
+                    .help("Create a new PDF, image, or text file")
                 RibbonToolButton("Print", systemImage: "printer", action: printDocument)
             }
 
