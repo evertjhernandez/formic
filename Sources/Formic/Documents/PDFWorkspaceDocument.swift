@@ -18,7 +18,7 @@ final class PDFWorkspaceDocument: NSDocument {
     }
 
     override class var autosavesInPlace: Bool {
-        true
+        false
     }
 
     override func makeWindowControllers() {
@@ -54,20 +54,48 @@ final class PDFWorkspaceDocument: NSDocument {
         addWindowController(NSWindowController(window: window))
     }
 
-    func saveFromRibbon(completionHandler: ((Error?) -> Void)? = nil) {
+    func saveFromRibbon(
+        requiresConfirmation: Bool = true,
+        completionHandler: ((Error?) -> Void)? = nil
+    ) {
         guard isDocumentEdited else {
             session.cancelSaving()
             completionHandler?(nil)
             return
         }
 
-        session.beginSaving()
-
         guard let fileURL else {
             session.cancelSaving()
             saveAs(nil)
             return
         }
+
+        guard requiresConfirmation else {
+            performSave(to: fileURL, completionHandler: completionHandler)
+            return
+        }
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Save changes to \(displayName ?? "this PDF")?"
+        alert.informativeText = "This replaces the PDF on disk. Use Save a Copy if you want to keep the current file unchanged."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        present(alert) { [weak self] response in
+            guard response == .alertFirstButtonReturn else {
+                self?.session.cancelSaving()
+                return
+            }
+            self?.performSave(to: fileURL, completionHandler: completionHandler)
+        }
+    }
+
+    private func performSave(
+        to fileURL: URL,
+        completionHandler: ((Error?) -> Void)?
+    ) {
+        session.beginSaving()
 
         save(
             to: fileURL,

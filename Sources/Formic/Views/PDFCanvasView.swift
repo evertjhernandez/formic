@@ -20,6 +20,10 @@ struct PDFCanvasView: NSViewRepresentable {
         pdfView.onAnnotationSelection = { [weak session] annotation in
             session?.selectAnnotation(annotation)
         }
+        pdfView.onNotePlacement = { [weak session] page, point in
+            session?.placeNote(on: page, at: point)
+        }
+        pdfView.isPlacingNote = session.annotationTool == .note
 
         context.coordinator.attach(to: pdfView)
         session.viewBridge.attach(pdfView)
@@ -30,6 +34,10 @@ struct PDFCanvasView: NSViewRepresentable {
         if pdfView.document !== session.document {
             pdfView.document = session.document
             pdfView.autoScales = true
+        }
+
+        if let pdfView = pdfView as? AnnotationSelectingPDFView {
+            pdfView.isPlacingNote = session.annotationTool == .note
         }
     }
 
@@ -86,15 +94,40 @@ struct PDFCanvasView: NSViewRepresentable {
 
 private final class AnnotationSelectingPDFView: PDFView {
     var onAnnotationSelection: ((PDFAnnotation?) -> Void)?
+    var onNotePlacement: ((PDFPage, NSPoint) -> Void)?
+    var isPlacingNote = false {
+        didSet {
+            guard oldValue != isPlacingNote else { return }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
 
     override func mouseDown(with event: NSEvent) {
         let viewPoint = convert(event.locationInWindow, from: nil)
-        let annotation = page(for: viewPoint, nearest: false).flatMap { page in
-            page.annotation(at: convert(viewPoint, to: page))
+        guard let page = page(for: viewPoint, nearest: false) else {
+            if !isPlacingNote {
+                onAnnotationSelection?(nil)
+                super.mouseDown(with: event)
+            }
+            return
+        }
+        let pagePoint = convert(viewPoint, to: page)
+
+        if isPlacingNote {
+            onNotePlacement?(page, pagePoint)
+            return
         }
 
+        let annotation = page.annotation(at: pagePoint)
         onAnnotationSelection?(annotation)
         super.mouseDown(with: event)
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        if isPlacingNote {
+            addCursorRect(bounds, cursor: .crosshair)
+        }
     }
 }
 

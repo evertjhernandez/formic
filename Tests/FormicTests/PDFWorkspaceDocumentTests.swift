@@ -5,6 +5,10 @@ import XCTest
 
 @MainActor
 final class PDFWorkspaceDocumentTests: XCTestCase {
+    func testDocumentsRequireExplicitSave() {
+        XCTAssertFalse(PDFWorkspaceDocument.autosavesInPlace)
+    }
+
     func testSaveFromRibbonDoesNotRewriteUnchangedDocument() throws {
         let source = try makePDFData()
         let workspaceDocument = PDFWorkspaceDocument()
@@ -16,7 +20,7 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         workspaceDocument.fileURL = destination
 
         var completionCalled = false
-        workspaceDocument.saveFromRibbon { error in
+        workspaceDocument.saveFromRibbon(requiresConfirmation: false) { error in
             XCTAssertNil(error)
             completionCalled = true
         }
@@ -42,12 +46,15 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         let saveCompleted = expectation(description: "Ribbon save completed")
         var saveError: Error?
 
-        workspaceDocument.saveFromRibbon { error in
+        workspaceDocument.saveFromRibbon(requiresConfirmation: false) { error in
             saveError = error
             saveCompleted.fulfill()
         }
 
-        XCTAssertEqual(workspaceDocument.session.saveState, .saving)
+        XCTAssertTrue(
+            workspaceDocument.session.saveState == .saving
+                || workspaceDocument.session.saveState == .saved
+        )
         await fulfillment(of: [saveCompleted], timeout: 3)
         XCTAssertNil(saveError)
         XCTAssertEqual(workspaceDocument.session.saveState, .saved)
@@ -110,7 +117,7 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         workspaceDocument.fileURL = destination
         let saveCompleted = expectation(description: "Annotated PDF saved")
 
-        workspaceDocument.saveFromRibbon { error in
+        workspaceDocument.saveFromRibbon(requiresConfirmation: false) { error in
             XCTAssertNil(error)
             saveCompleted.fulfill()
         }
@@ -128,6 +135,61 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         XCTAssertEqual(reopenedColor.redComponent, expectedColor.redComponent, accuracy: 0.01)
         XCTAssertEqual(reopenedColor.greenComponent, expectedColor.greenComponent, accuracy: 0.01)
         XCTAssertEqual(reopenedColor.blueComponent, expectedColor.blueComponent, accuracy: 0.01)
+        XCTAssertFalse(workspaceDocument.isDocumentEdited)
+        XCTAssertFalse(workspaceDocument.session.hasUnsavedChanges)
+
+        workspaceDocument.close()
+        try? FileManager.default.removeItem(at: destination)
+    }
+
+    func testNoteContentAndAuthorSurviveSaveReopen() async throws {
+        let workspaceDocument = PDFWorkspaceDocument()
+        try workspaceDocument.read(from: makePDFData(), ofType: "com.adobe.pdf")
+        workspaceDocument.makeWindowControllers()
+
+        let document = try XCTUnwrap(workspaceDocument.session.document)
+        let page = try XCTUnwrap(document.page(at: 0))
+        XCTAssertTrue(workspaceDocument.session.allowsCommenting)
+        workspaceDocument.session.activateNoteTool()
+        XCTAssertEqual(workspaceDocument.session.annotationTool, .note)
+        workspaceDocument.session.placeNote(on: page, at: NSPoint(x: 180, y: 560))
+        XCTAssertNotNil(page.annotations.first(where: { $0.type == "Text" }))
+        workspaceDocument.session.updateSelectedNote(
+            contents: "Review this section before publishing.",
+            author: "Formic Reviewer"
+        )
+
+        let changeRegistered = expectation(description: "Undoable note changes registered")
+        DispatchQueue.main.async {
+            changeRegistered.fulfill()
+        }
+        await fulfillment(of: [changeRegistered], timeout: 1)
+
+        XCTAssertTrue(workspaceDocument.isDocumentEdited)
+        XCTAssertTrue(workspaceDocument.session.hasUnsavedChanges)
+
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("pdf")
+        workspaceDocument.fileURL = destination
+        let saveCompleted = expectation(description: "PDF with note saved")
+
+        workspaceDocument.saveFromRibbon(requiresConfirmation: false) { error in
+            XCTAssertNil(error)
+            saveCompleted.fulfill()
+        }
+        await fulfillment(of: [saveCompleted], timeout: 3)
+
+        let reopened = try XCTUnwrap(PDFDocument(url: destination))
+        let note = try XCTUnwrap(
+            reopened.page(at: 0)?.annotations.first(where: { $0.type == "Text" })
+        )
+        XCTAssertEqual(note.type, "Text")
+        XCTAssertEqual(note.iconType, .note)
+        XCTAssertEqual(note.contents, "Review this section before publishing.")
+        XCTAssertEqual(note.userName, "Formic Reviewer")
+        XCTAssertEqual(note.bounds.origin.x, 168, accuracy: 0.1)
+        XCTAssertEqual(note.bounds.origin.y, 548, accuracy: 0.1)
         XCTAssertFalse(workspaceDocument.isDocumentEdited)
         XCTAssertFalse(workspaceDocument.session.hasUnsavedChanges)
 

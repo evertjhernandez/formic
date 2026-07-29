@@ -7,7 +7,10 @@ struct AnnotationSelection {
     let pageNumber: Int
     let color: NSColor
     let author: String?
+    let contents: String
+    let isNote: Bool
     let canEditAppearance: Bool
+    let canEditText: Bool
     let canDelete: Bool
 
     init(
@@ -20,9 +23,12 @@ struct AnnotationSelection {
         self.pageNumber = pageNumber
         color = annotation.color.withAlphaComponent(1)
         author = annotation.userName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        contents = annotation.contents ?? ""
+        isNote = annotation.type == "Text"
 
         let isEditable = allowsCommenting && !annotation.isReadOnly
         canEditAppearance = isEditable && !annotation.hasAppearanceStream
+        canEditText = isEditable && isNote
         canDelete = isEditable && annotation.type != "Link" && annotation.type != "Widget"
     }
 
