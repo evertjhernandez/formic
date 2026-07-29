@@ -92,26 +92,16 @@ func renderIcon(pixels: Int) throws -> Data {
     iconPath.stroke()
     NSGraphicsContext.current?.restoreGraphicsState()
 
-    let symbolSize = dimension * 0.43
-    let symbolConfiguration = NSImage.SymbolConfiguration(pointSize: symbolSize, weight: .bold)
-        .applying(NSImage.SymbolConfiguration(paletteColors: [.white]))
-
-    if let baseSymbol = NSImage(systemSymbolName: "ant.fill", accessibilityDescription: nil),
-       let symbol = baseSymbol.withSymbolConfiguration(symbolConfiguration) {
-        symbol.draw(
-            in: NSRect(
-                x: (dimension - symbolSize) / 2,
-                y: (dimension - symbolSize) / 2,
-                width: symbolSize,
-                height: symbolSize
-            ),
-            from: NSRect.zero,
-            operation: NSCompositingOperation.sourceOver,
-            fraction: 1
+    NSShadow().set()
+    let markInset = dimension * 0.22
+    drawFormicMark(
+        in: NSRect(
+            x: markInset,
+            y: markInset,
+            width: dimension - (markInset * 2),
+            height: dimension - (markInset * 2)
         )
-    } else {
-        throw IconGenerationError.missingSymbol
-    }
+    )
 
     graphicsContext.flushGraphics()
     NSGraphicsContext.restoreGraphicsState()
@@ -123,8 +113,83 @@ func renderIcon(pixels: Int) throws -> Data {
     return data
 }
 
+func drawFormicMark(in rect: NSRect) {
+    func point(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
+        NSPoint(
+            x: rect.minX + (x * rect.width),
+            y: rect.maxY - (y * rect.height)
+        )
+    }
+
+    func polygon(_ coordinates: [(CGFloat, CGFloat)]) -> NSBezierPath {
+        let path = NSBezierPath()
+        guard let first = coordinates.first else { return path }
+        path.move(to: point(first.0, first.1))
+
+        for coordinate in coordinates.dropFirst() {
+            path.line(to: point(coordinate.0, coordinate.1))
+        }
+
+        path.close()
+        return path
+    }
+
+    func polyline(_ coordinates: [(CGFloat, CGFloat)]) -> NSBezierPath {
+        let path = NSBezierPath()
+        guard let first = coordinates.first else { return path }
+        path.move(to: point(first.0, first.1))
+
+        for coordinate in coordinates.dropFirst() {
+            path.line(to: point(coordinate.0, coordinate.1))
+        }
+
+        return path
+    }
+
+    let limbs: [[(CGFloat, CGFloat)]] = [
+        [(0.43, 0.22), (0.36, 0.11), (0.24, 0.04)],
+        [(0.57, 0.22), (0.64, 0.11), (0.76, 0.04)],
+        [(0.38, 0.43), (0.23, 0.35), (0.11, 0.24)],
+        [(0.62, 0.43), (0.77, 0.35), (0.89, 0.24)],
+        [(0.37, 0.55), (0.22, 0.55), (0.10, 0.48)],
+        [(0.63, 0.55), (0.78, 0.55), (0.90, 0.48)],
+        [(0.40, 0.67), (0.25, 0.76), (0.14, 0.89)],
+        [(0.60, 0.67), (0.75, 0.76), (0.86, 0.89)]
+    ]
+
+    NSColor.white.setStroke()
+    for limb in limbs {
+        let path = polyline(limb)
+        path.lineWidth = max(1, rect.width * 0.045)
+        path.lineCapStyle = .square
+        path.lineJoinStyle = .miter
+        path.stroke()
+    }
+
+    let bodyParts = [
+        polygon([
+            (0.43, 0.20), (0.57, 0.20), (0.63, 0.29),
+            (0.57, 0.38), (0.43, 0.38), (0.37, 0.29)
+        ]),
+        polygon([
+            (0.42, 0.40), (0.58, 0.40), (0.64, 0.52),
+            (0.58, 0.64), (0.42, 0.64), (0.36, 0.52)
+        ]),
+        polygon([
+            (0.42, 0.66), (0.58, 0.66), (0.69, 0.75),
+            (0.69, 0.82), (0.60, 0.82), (0.60, 0.91),
+            (0.50, 0.97), (0.34, 0.83), (0.34, 0.75)
+        ]),
+        polygon([
+            (0.61, 0.84), (0.69, 0.84), (0.61, 0.91)
+        ])
+    ]
+
+    NSColor.white.setFill()
+    bodyParts.forEach { $0.fill() }
+}
+
 enum IconGenerationError: Error {
     case couldNotCreateBitmap
     case couldNotEncodePNG
-    case missingSymbol
 }

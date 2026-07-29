@@ -19,9 +19,8 @@ struct WorkspaceHeaderView: View {
                             )
                         )
 
-                    Image(systemName: "ant.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white)
+                    FormicMarkView()
+                        .padding(6)
                 }
                 .frame(width: 30, height: 30)
 
