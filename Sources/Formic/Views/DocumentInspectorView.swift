@@ -17,15 +17,19 @@ struct DocumentInspectorView: View {
                     .frame(width: 34, height: 34)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("DOCUMENT DETAILS")
+                        Text(session.hasSelectedAnnotation ? "ANNOTATION DETAILS" : "DOCUMENT DETAILS")
                             .font(.system(size: 9, weight: .bold))
                             .tracking(0.8)
                             .foregroundStyle(FormicTheme.accent)
 
-                        Text(session.title)
+                        Text(session.annotationSelection?.typeName ?? session.title)
                             .font(.system(size: 14, weight: .semibold))
                             .lineLimit(2)
                     }
+                }
+
+                if let selection = session.annotationSelection {
+                    annotationInspector(selection)
                 }
 
                 InspectorCard(title: "Overview", systemImage: "doc.plaintext") {
@@ -52,12 +56,106 @@ struct DocumentInspectorView: View {
         .background(.regularMaterial)
     }
 
+    @ViewBuilder
+    private func annotationInspector(_ selection: AnnotationSelection) -> some View {
+        InspectorCard(title: "Selected annotation", systemImage: "selection.pin.in.out") {
+            InspectorRow(label: "Type", value: selection.typeName)
+            InspectorRow(label: "Page", value: "\(selection.pageNumber)")
+            InspectorRow(label: "Author", value: selection.author ?? "Not specified")
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 9) {
+                Text("COLOR")
+                    .font(.system(size: 9, weight: .semibold))
+                    .tracking(0.5)
+                    .foregroundStyle(.tertiary)
+
+                HStack(spacing: 8) {
+                    ForEach(AnnotationColorOption.allCases) { option in
+                        Button {
+                            session.setSelectedAnnotationColor(option.color)
+                        } label: {
+                            Circle()
+                                .fill(Color(nsColor: option.color))
+                                .frame(width: 20, height: 20)
+                                .overlay {
+                                    if option.matches(selection.color) {
+                                        Circle()
+                                            .stroke(.primary, lineWidth: 2)
+                                            .padding(-3)
+                                    }
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!selection.canEditAppearance)
+                        .help(option.title)
+                        .accessibilityLabel("Set annotation color to \(option.title)")
+                    }
+                }
+            }
+
+            if !selection.canEditAppearance {
+                Label("This annotation's appearance can't be edited safely.", systemImage: "info.circle")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack {
+                Button("Clear Selection") {
+                    session.selectAnnotation(nil)
+                }
+
+                Spacer()
+
+                Button("Delete", role: .destructive) {
+                    session.deleteSelectedAnnotation()
+                }
+                .disabled(!selection.canDelete)
+            }
+            .controlSize(.small)
+        }
+    }
+
     private func yesNo(_ value: Bool) -> String {
         value ? "Yes" : "No"
     }
 
     private func allowed(_ value: Bool) -> String {
         value ? "Allowed" : "Restricted"
+    }
+}
+
+private enum AnnotationColorOption: String, CaseIterable, Identifiable {
+    case yellow
+    case green
+    case blue
+    case pink
+    case red
+
+    var id: Self { self }
+    var title: String { rawValue.capitalized }
+
+    var color: NSColor {
+        switch self {
+        case .yellow: return .systemYellow
+        case .green: return .systemGreen
+        case .blue: return .systemBlue
+        case .pink: return .systemPink
+        case .red: return .systemRed
+        }
+    }
+
+    func matches(_ other: NSColor) -> Bool {
+        guard let lhs = color.usingColorSpace(.deviceRGB),
+              let rhs = other.usingColorSpace(.deviceRGB)
+        else { return false }
+
+        let tolerance = 0.08
+        return abs(lhs.redComponent - rhs.redComponent) < tolerance
+            && abs(lhs.greenComponent - rhs.greenComponent) < tolerance
+            && abs(lhs.blueComponent - rhs.blueComponent) < tolerance
     }
 }
 

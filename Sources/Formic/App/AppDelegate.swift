@@ -81,6 +81,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         currentPDFDocument?.session.applyTextMarkup(.strikeOut)
     }
 
+    @objc
+    func deleteSelectedAnnotation(_ sender: Any?) {
+        currentPDFDocument?.session.deleteSelectedAnnotation()
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
         case #selector(saveCurrentDocument(_:)):
@@ -91,6 +96,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
              #selector(underlineSelection(_:)),
              #selector(strikeOutSelection(_:)):
             return currentPDFDocument?.session.canApplyTextMarkup == true
+        case #selector(deleteSelectedAnnotation(_:)):
+            return currentPDFDocument?.session.annotationSelection?.canDelete == true
         default:
             return true
         }

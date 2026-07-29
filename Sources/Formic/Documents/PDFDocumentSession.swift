@@ -15,6 +15,7 @@ final class PDFDocumentSession: ObservableObject {
     @Published private(set) var hasTextSelection = false
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
+    @Published private(set) var annotationSelection: AnnotationSelection?
 
     let viewBridge = PDFViewBridge()
     private let markupService = PDFTextMarkupService()
@@ -22,6 +23,8 @@ final class PDFDocumentSession: ObservableObject {
     private weak var undoManager: UndoManager?
     private var onDocumentChange: ((NSDocument.ChangeType) -> Void)?
     private var undoObservers: [NSObjectProtocol] = []
+    private weak var selectedAnnotation: PDFAnnotation?
+    private weak var selectedAnnotationPage: PDFPage?
 
     var pageCount: Int {
         document?.pageCount ?? 0
@@ -52,8 +55,16 @@ final class PDFDocumentSession: ObservableObject {
         hasTextSelection && allowsCommenting
     }
 
+    var hasSelectedAnnotation: Bool {
+        annotationSelection != nil
+    }
+
     func replaceDocument(_ document: PDFDocument) {
         saveStateResetWorkItem?.cancel()
+        selectedAnnotation?.isHighlighted = false
+        selectedAnnotation = nil
+        selectedAnnotationPage = nil
+        annotationSelection = nil
         self.document = document
         currentPageIndex = 0
         searchQuery = ""
@@ -105,6 +116,26 @@ final class PDFDocumentSession: ObservableObject {
 
     func syncTextSelection() {
         hasTextSelection = viewBridge.currentTextSelection != nil
+        if hasTextSelection {
+            selectAnnotation(nil)
+        }
+    }
+
+    func selectAnnotation(_ annotation: PDFAnnotation?) {
+        guard selectedAnnotation !== annotation else { return }
+
+        selectedAnnotation?.isHighlighted = false
+        selectedAnnotation = annotation
+        selectedAnnotationPage = annotation?.page
+        annotation?.isHighlighted = true
+
+        if annotation != nil {
+            viewBridge.clearSelection()
+            hasTextSelection = false
+        }
+
+        refreshAnnotationSelection()
+        viewBridge.refresh()
     }
 
     @discardableResult
@@ -122,7 +153,33 @@ final class PDFDocumentSession: ObservableObject {
         setMarkup(records, isAdded: true, actionName: style.actionName)
         viewBridge.clearSelection()
         hasTextSelection = false
+        selectAnnotation(records.first?.annotation)
         return records.count
+    }
+
+    func setSelectedAnnotationColor(_ color: NSColor) {
+        guard let annotation = selectedAnnotation,
+              let page = selectedAnnotationPage,
+              annotationSelection?.canEditAppearance == true
+        else { return }
+
+        let updatedColor = color.withAlphaComponent(annotation.color.alphaComponent)
+        guard !updatedColor.withAlphaComponent(1).isEqual(annotation.color.withAlphaComponent(1)) else { return }
+        setAnnotationColor(
+            updatedColor,
+            for: annotation,
+            on: page,
+            actionName: "Change Annotation Color"
+        )
+    }
+
+    func deleteSelectedAnnotation() {
+        guard let annotation = selectedAnnotation,
+              let page = selectedAnnotationPage,
+              annotationSelection?.canDelete == true
+        else { return }
+
+        setAnnotation(annotation, on: page, isPresent: false)
     }
 
     func undo() {
@@ -258,9 +315,122 @@ final class PDFDocumentSession: ObservableObject {
         onDocumentChange?(changeType)
         refreshUndoAvailability()
 
+        if !isAdded, records.contains(where: { $0.annotation === selectedAnnotation }) {
+            selectAnnotation(nil)
+        }
+
         DispatchQueue.main.async { [weak self] in
             self?.refreshUndoAvailability()
         }
+    }
+
+    private func setAnnotationColor(
+        _ color: NSColor,
+        for annotation: PDFAnnotation,
+        on page: PDFPage,
+        actionName: String
+    ) {
+        let previousColor = annotation.color
+        annotation.color = color
+        annotation.modificationDate = Date()
+
+        registerUndo(actionName: actionName) { session in
+            session.setAnnotationColor(
+                previousColor,
+                for: annotation,
+                on: page,
+                actionName: actionName
+            )
+        }
+
+        publishDocumentChange()
+        if annotation === selectedAnnotation {
+            refreshAnnotationSelection()
+        }
+        viewBridge.refresh()
+    }
+
+    private func setAnnotation(
+        _ annotation: PDFAnnotation,
+        on page: PDFPage,
+        isPresent: Bool
+    ) {
+        if isPresent {
+            page.addAnnotation(annotation)
+            selectAnnotation(annotation)
+        } else {
+            if annotation === selectedAnnotation {
+                selectAnnotation(nil)
+            }
+            page.removeAnnotation(annotation)
+        }
+
+        registerUndo(actionName: "Delete Annotation") { session in
+            session.setAnnotation(annotation, on: page, isPresent: !isPresent)
+        }
+        publishDocumentChange()
+        viewBridge.refresh()
+    }
+
+    private func registerUndo(
+        actionName: String,
+        operation: @escaping (PDFDocumentSession) -> Void
+    ) {
+        guard let undoManager else { return }
+        let createsUndoGroup = !undoManager.isUndoing && !undoManager.isRedoing
+        if createsUndoGroup {
+            undoManager.beginUndoGrouping()
+        }
+        undoManager.registerUndo(withTarget: self, handler: operation)
+        undoManager.setActionName(actionName)
+        if createsUndoGroup {
+            undoManager.endUndoGrouping()
+        }
+    }
+
+    private func publishDocumentChange() {
+        let changeType: NSDocument.ChangeType
+        if undoManager?.isUndoing == true {
+            changeType = .changeUndone
+        } else if undoManager?.isRedoing == true {
+            changeType = .changeRedone
+        } else {
+            changeType = .changeDone
+        }
+
+        onDocumentChange?(changeType)
+        refreshUndoAvailability()
+        DispatchQueue.main.async { [weak self] in
+            self?.refreshUndoAvailability()
+        }
+    }
+
+    private func refreshAnnotationSelection() {
+        guard let annotation = selectedAnnotation,
+              let page = selectedAnnotationPage,
+              let document,
+              page.annotations.contains(where: { $0 === annotation })
+        else {
+            selectedAnnotation = nil
+            selectedAnnotationPage = nil
+            annotationSelection = nil
+            return
+        }
+
+        let pageIndex = document.index(for: page)
+        guard pageIndex != NSNotFound else {
+            annotation.isHighlighted = false
+            selectedAnnotation = nil
+            selectedAnnotationPage = nil
+            annotationSelection = nil
+            return
+        }
+
+        annotationSelection = AnnotationSelection(
+            annotation: annotation,
+            pageNumber: pageIndex + 1,
+            allowsCommenting: allowsCommenting
+        )
     }
 
     private func refreshUndoAvailability() {

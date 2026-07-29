@@ -113,6 +113,16 @@ enum MainMenu {
         )
         strikeOut.keyEquivalentModifierMask = [.command, .option]
         strikeOut.target = actionTarget
+
+        menu.addItem(.separator())
+
+        let delete = menu.addItem(
+            withTitle: "Delete Selected Annotation",
+            action: #selector(AppDelegate.deleteSelectedAnnotation(_:)),
+            keyEquivalent: "\u{7f}"
+        )
+        delete.keyEquivalentModifierMask = []
+        delete.target = actionTarget
     }
 
     private static func addWindowMenu(to mainMenu: NSMenu) {

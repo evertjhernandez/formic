@@ -9,7 +9,7 @@ struct PDFCanvasView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> PDFView {
-        let pdfView = PDFView()
+        let pdfView = AnnotationSelectingPDFView()
         pdfView.autoScales = true
         pdfView.displayMode = .singlePageContinuous
         pdfView.displayDirection = .vertical
@@ -17,6 +17,9 @@ struct PDFCanvasView: NSViewRepresentable {
         pdfView.pageShadowsEnabled = true
         pdfView.backgroundColor = .formicCanvas
         pdfView.document = session.document
+        pdfView.onAnnotationSelection = { [weak session] annotation in
+            session?.selectAnnotation(annotation)
+        }
 
         context.coordinator.attach(to: pdfView)
         session.viewBridge.attach(pdfView)
@@ -78,6 +81,20 @@ struct PDFCanvasView: NSViewRepresentable {
         deinit {
             observers.forEach(NotificationCenter.default.removeObserver)
         }
+    }
+}
+
+private final class AnnotationSelectingPDFView: PDFView {
+    var onAnnotationSelection: ((PDFAnnotation?) -> Void)?
+
+    override func mouseDown(with event: NSEvent) {
+        let viewPoint = convert(event.locationInWindow, from: nil)
+        let annotation = page(for: viewPoint, nearest: false).flatMap { page in
+            page.annotation(at: convert(viewPoint, to: page))
+        }
+
+        onAnnotationSelection?(annotation)
+        super.mouseDown(with: event)
     }
 }
 

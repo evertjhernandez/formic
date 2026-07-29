@@ -46,4 +46,8 @@ final class PDFViewBridge {
         guard let pdfView else { return }
         pdfView.autoScales = true
     }
+
+    func refresh() {
+        pdfView?.needsDisplay = true
+    }
 }

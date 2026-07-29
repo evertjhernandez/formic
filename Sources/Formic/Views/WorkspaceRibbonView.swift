@@ -123,8 +123,14 @@ struct WorkspaceRibbonView: View {
                     title: selectionStatusTitle,
                     detail: selectionStatusDetail,
                     systemImage: selectionStatusImage,
-                    isReady: session.canApplyTextMarkup
+                    isReady: session.canApplyTextMarkup || session.hasSelectedAnnotation
                 )
+
+                if session.hasSelectedAnnotation {
+                    RibbonToolButton("Delete", systemImage: "trash", action: session.deleteSelectedAnnotation)
+                        .disabled(session.annotationSelection?.canDelete != true)
+                        .help("Delete the selected annotation")
+                }
             }
 
             RibbonSeparator()
@@ -273,6 +279,9 @@ struct WorkspaceRibbonView: View {
         if !session.allowsCommenting {
             return "Read-only PDF"
         }
+        if let annotation = session.annotationSelection {
+            return "\(annotation.typeName) selected"
+        }
         return session.hasTextSelection ? "Text selected" : "Select text"
     }
 
@@ -280,12 +289,18 @@ struct WorkspaceRibbonView: View {
         if !session.allowsCommenting {
             return "Annotations aren't permitted"
         }
+        if session.hasSelectedAnnotation {
+            return "Edit it in the Details panel"
+        }
         return session.hasTextSelection ? "Choose a markup style" : "Drag across text on the page"
     }
 
     private var selectionStatusImage: String {
         if !session.allowsCommenting {
             return "lock.fill"
+        }
+        if session.hasSelectedAnnotation {
+            return "selection.pin.in.out"
         }
         return session.hasTextSelection ? "checkmark.circle.fill" : "text.cursor"
     }

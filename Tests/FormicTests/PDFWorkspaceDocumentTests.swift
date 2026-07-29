@@ -100,6 +100,10 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         XCTAssertTrue(workspaceDocument.isDocumentEdited)
         XCTAssertTrue(workspaceDocument.session.hasUnsavedChanges)
 
+        let createdAnnotation = try XCTUnwrap(document.page(at: 0)?.annotations.first)
+        workspaceDocument.session.selectAnnotation(createdAnnotation)
+        workspaceDocument.session.setSelectedAnnotationColor(.systemGreen)
+
         let destination = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("pdf")
@@ -118,6 +122,12 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
             reopened.page(at: 0)?.annotations.first?.type,
             "Underline"
         )
+        let reopenedAnnotation = try XCTUnwrap(reopened.page(at: 0)?.annotations.first)
+        let reopenedColor = try XCTUnwrap(reopenedAnnotation.color.usingColorSpace(.deviceRGB))
+        let expectedColor = try XCTUnwrap(NSColor.systemGreen.usingColorSpace(.deviceRGB))
+        XCTAssertEqual(reopenedColor.redComponent, expectedColor.redComponent, accuracy: 0.01)
+        XCTAssertEqual(reopenedColor.greenComponent, expectedColor.greenComponent, accuracy: 0.01)
+        XCTAssertEqual(reopenedColor.blueComponent, expectedColor.blueComponent, accuracy: 0.01)
         XCTAssertFalse(workspaceDocument.isDocumentEdited)
         XCTAssertFalse(workspaceDocument.session.hasUnsavedChanges)
 

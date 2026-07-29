@@ -49,6 +49,11 @@ struct WorkspaceRootView: View {
             .navigationSplitViewStyle(.balanced)
         }
         .tint(FormicTheme.accent)
+        .onChange(of: session.hasSelectedAnnotation) { _, hasSelection in
+            if hasSelection {
+                showsInspector = true
+            }
+        }
         .sheet(isPresented: $session.showsExportSheet) {
             PDFExportSheetView(
                 session: session,
