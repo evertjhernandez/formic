@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var settingsWindowController: NSWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -49,5 +49,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindowController?.showWindow(sender)
         settingsWindowController?.window?.makeKeyAndOrderFront(sender)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc
+    func saveCurrentDocument(_ sender: Any?) {
+        currentPDFDocument?.saveFromRibbon()
+    }
+
+    @objc
+    func saveCurrentDocumentAsCopy(_ sender: Any?) {
+        currentPDFDocument?.saveCopyFromRibbon()
+    }
+
+    @objc
+    func exportCurrentDocument(_ sender: Any?) {
+        currentPDFDocument?.showExportOptions()
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(saveCurrentDocument(_:)):
+            return currentPDFDocument?.isDocumentEdited == true
+        case #selector(saveCurrentDocumentAsCopy(_:)), #selector(exportCurrentDocument(_:)):
+            return currentPDFDocument != nil
+        default:
+            return true
+        }
+    }
+
+    private var currentPDFDocument: PDFWorkspaceDocument? {
+        NSDocumentController.shared.currentDocument as? PDFWorkspaceDocument
     }
 }

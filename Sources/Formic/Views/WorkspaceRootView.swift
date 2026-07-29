@@ -3,6 +3,8 @@ import SwiftUI
 struct WorkspaceRootView: View {
     @ObservedObject var session: PDFDocumentSession
     let saveDocument: () -> Void
+    let saveDocumentCopy: () -> Void
+    let exportDocument: (PDFExportOptions) -> Void
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var showsInspector = false
     @State private var ribbonTab: WorkspaceRibbonTab = .home
@@ -24,7 +26,9 @@ struct WorkspaceRootView: View {
                 inspectorVisible: showsInspector,
                 toggleSidebar: toggleSidebar,
                 toggleInspector: { showsInspector.toggle() },
-                saveDocument: saveDocument
+                saveDocument: saveDocument,
+                saveDocumentCopy: saveDocumentCopy,
+                showExportSheet: { session.showsExportSheet = true }
             )
 
             Divider()
@@ -45,6 +49,18 @@ struct WorkspaceRootView: View {
             .navigationSplitViewStyle(.balanced)
         }
         .tint(FormicTheme.accent)
+        .sheet(isPresented: $session.showsExportSheet) {
+            PDFExportSheetView(
+                session: session,
+                onCancel: { session.showsExportSheet = false },
+                onExport: { options in
+                    session.showsExportSheet = false
+                    DispatchQueue.main.async {
+                        exportDocument(options)
+                    }
+                }
+            )
+        }
     }
 
     private var pageStatus: some View {

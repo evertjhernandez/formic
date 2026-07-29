@@ -10,6 +10,8 @@ final class PDFDocumentSession: ObservableObject {
     @Published private(set) var selectedSearchResultIndex: Int?
     @Published var sidebarMode: SidebarMode = .thumbnails
     @Published private(set) var saveState: DocumentSaveState = .idle
+    @Published private(set) var hasUnsavedChanges = false
+    @Published var showsExportSheet = false
 
     let viewBridge = PDFViewBridge()
     private var saveStateResetWorkItem: DispatchWorkItem?
@@ -43,6 +45,12 @@ final class PDFDocumentSession: ObservableObject {
         searchResults = []
         selectedSearchResultIndex = nil
         saveState = .idle
+        hasUnsavedChanges = false
+        showsExportSheet = false
+    }
+
+    func setHasUnsavedChanges(_ hasUnsavedChanges: Bool) {
+        self.hasUnsavedChanges = hasUnsavedChanges
     }
 
     func beginSaving() {
