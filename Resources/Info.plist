@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key>
+  <string>Formic</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.ejhernandez.formic</string>
+  <key>CFBundleName</key>
+  <string>Formic</string>
+  <key>CFBundleDisplayName</key>
+  <string>Formic</string>
+  <key>CFBundleIconFile</key>
+  <string>Formic.icns</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.1.0</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>14.0</string>
+  <key>NSPrincipalClass</key>
+  <string>NSApplication</string>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>PDF Document</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>com.adobe.pdf</string>
+      </array>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>pdf</string>
+      </array>
+      <key>NSDocumentClass</key>
+      <string>PDFWorkspaceDocument</string>
+    </dict>
+  </array>
+</dict>
+</plist>
