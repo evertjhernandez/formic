@@ -23,8 +23,10 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
             saveCompleted.fulfill()
         }
 
+        XCTAssertEqual(workspaceDocument.session.saveState, .saving)
         await fulfillment(of: [saveCompleted], timeout: 3)
         XCTAssertNil(saveError)
+        XCTAssertEqual(workspaceDocument.session.saveState, .saved)
 
         let reopened = try XCTUnwrap(PDFDocument(url: destination))
         XCTAssertEqual(reopened.pageCount, 1)

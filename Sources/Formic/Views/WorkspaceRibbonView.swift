@@ -102,7 +102,13 @@ struct WorkspaceRibbonView: View {
         Group {
             RibbonGroup(title: "Document") {
                 RibbonToolButton("Open", systemImage: "folder", action: openDocument)
-                RibbonToolButton("Save", systemImage: "square.and.arrow.down", action: saveDocument)
+                RibbonToolButton(
+                    saveButtonTitle,
+                    systemImage: saveButtonSystemImage,
+                    isActive: session.saveState == .saved,
+                    action: saveDocument
+                )
+                .disabled(session.saveState == .saving)
                 RibbonToolButton("Print", systemImage: "printer", action: printDocument)
             }
 
@@ -206,6 +212,32 @@ struct WorkspaceRibbonView: View {
     private var resultLabel: String {
         guard !session.searchResults.isEmpty else { return "No results" }
         return "Result \((session.selectedSearchResultIndex ?? 0) + 1) of \(session.searchResults.count)"
+    }
+
+    private var saveButtonTitle: String {
+        switch session.saveState {
+        case .idle:
+            return "Save"
+        case .saving:
+            return "Saving…"
+        case .saved:
+            return "Saved"
+        case .failed:
+            return "Save failed"
+        }
+    }
+
+    private var saveButtonSystemImage: String {
+        switch session.saveState {
+        case .idle:
+            return "square.and.arrow.down"
+        case .saving:
+            return "arrow.triangle.2.circlepath"
+        case .saved:
+            return "checkmark.circle.fill"
+        case .failed:
+            return "exclamationmark.triangle.fill"
+        }
     }
 
     private func previousPage() {

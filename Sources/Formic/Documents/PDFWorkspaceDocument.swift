@@ -45,7 +45,10 @@ final class PDFWorkspaceDocument: NSDocument {
     }
 
     func saveFromRibbon(completionHandler: ((Error?) -> Void)? = nil) {
+        session.beginSaving()
+
         guard let fileURL else {
+            session.cancelSaving()
             saveAs(nil)
             return
         }
@@ -55,6 +58,8 @@ final class PDFWorkspaceDocument: NSDocument {
             ofType: fileType ?? "com.adobe.pdf",
             for: .saveOperation
         ) { [weak self] error in
+            self?.session.finishSaving(with: error)
+
             if let error {
                 self?.presentError(error)
             }
