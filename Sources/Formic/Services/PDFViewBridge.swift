@@ -21,6 +21,19 @@ final class PDFViewBridge {
         pdfView?.go(to: selection)
     }
 
+    var currentTextSelection: PDFSelection? {
+        guard let selection = pdfView?.currentSelection,
+              let text = selection.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty
+        else { return nil }
+
+        return selection
+    }
+
+    func clearSelection() {
+        pdfView?.clearSelection()
+    }
+
     func zoomIn() {
         pdfView?.zoomIn(nil)
     }

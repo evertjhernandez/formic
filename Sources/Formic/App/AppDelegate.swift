@@ -66,12 +66,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         currentPDFDocument?.showExportOptions()
     }
 
+    @objc
+    func highlightSelection(_ sender: Any?) {
+        currentPDFDocument?.session.applyTextMarkup(.highlight)
+    }
+
+    @objc
+    func underlineSelection(_ sender: Any?) {
+        currentPDFDocument?.session.applyTextMarkup(.underline)
+    }
+
+    @objc
+    func strikeOutSelection(_ sender: Any?) {
+        currentPDFDocument?.session.applyTextMarkup(.strikeOut)
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
         case #selector(saveCurrentDocument(_:)):
             return currentPDFDocument?.isDocumentEdited == true
         case #selector(saveCurrentDocumentAsCopy(_:)), #selector(exportCurrentDocument(_:)):
             return currentPDFDocument != nil
+        case #selector(highlightSelection(_:)),
+             #selector(underlineSelection(_:)),
+             #selector(strikeOutSelection(_:)):
+            return currentPDFDocument?.session.canApplyTextMarkup == true
         default:
             return true
         }

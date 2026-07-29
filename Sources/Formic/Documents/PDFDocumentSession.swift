@@ -12,9 +12,16 @@ final class PDFDocumentSession: ObservableObject {
     @Published private(set) var saveState: DocumentSaveState = .idle
     @Published private(set) var hasUnsavedChanges = false
     @Published var showsExportSheet = false
+    @Published private(set) var hasTextSelection = false
+    @Published private(set) var canUndo = false
+    @Published private(set) var canRedo = false
 
     let viewBridge = PDFViewBridge()
+    private let markupService = PDFTextMarkupService()
     private var saveStateResetWorkItem: DispatchWorkItem?
+    private weak var undoManager: UndoManager?
+    private var onDocumentChange: ((NSDocument.ChangeType) -> Void)?
+    private var undoObservers: [NSObjectProtocol] = []
 
     var pageCount: Int {
         document?.pageCount ?? 0
@@ -37,6 +44,14 @@ final class PDFDocumentSession: ObservableObject {
         document?.allowsPrinting ?? false
     }
 
+    var allowsCommenting: Bool {
+        document?.allowsCommenting ?? false
+    }
+
+    var canApplyTextMarkup: Bool {
+        hasTextSelection && allowsCommenting
+    }
+
     func replaceDocument(_ document: PDFDocument) {
         saveStateResetWorkItem?.cancel()
         self.document = document
@@ -47,10 +62,79 @@ final class PDFDocumentSession: ObservableObject {
         saveState = .idle
         hasUnsavedChanges = false
         showsExportSheet = false
+        hasTextSelection = false
+        refreshUndoAvailability()
+    }
+
+    func configureEditing(
+        undoManager: UndoManager?,
+        onDocumentChange: ((NSDocument.ChangeType) -> Void)? = nil
+    ) {
+        removeUndoObservers()
+        self.undoManager = undoManager
+        self.onDocumentChange = onDocumentChange
+
+        guard let undoManager else {
+            refreshUndoAvailability()
+            return
+        }
+
+        undoManager.groupsByEvent = false
+
+        let notifications: [Notification.Name] = [
+            .NSUndoManagerDidUndoChange,
+            .NSUndoManagerDidRedoChange,
+            .NSUndoManagerDidCloseUndoGroup,
+            .NSUndoManagerCheckpoint
+        ]
+        undoObservers = notifications.map { name in
+            NotificationCenter.default.addObserver(
+                forName: name,
+                object: undoManager,
+                queue: .main
+            ) { [weak self] _ in
+                self?.refreshUndoAvailability()
+            }
+        }
+        refreshUndoAvailability()
     }
 
     func setHasUnsavedChanges(_ hasUnsavedChanges: Bool) {
         self.hasUnsavedChanges = hasUnsavedChanges
+    }
+
+    func syncTextSelection() {
+        hasTextSelection = viewBridge.currentTextSelection != nil
+    }
+
+    @discardableResult
+    func applyTextMarkup(_ style: TextMarkupStyle) -> Int {
+        guard allowsCommenting,
+              let selection = viewBridge.currentTextSelection
+        else {
+            syncTextSelection()
+            return 0
+        }
+
+        let records = markupService.records(for: selection, style: style)
+        guard !records.isEmpty else { return 0 }
+
+        setMarkup(records, isAdded: true, actionName: style.actionName)
+        viewBridge.clearSelection()
+        hasTextSelection = false
+        return records.count
+    }
+
+    func undo() {
+        guard undoManager?.canUndo == true else { return }
+        undoManager?.undo()
+        refreshUndoAvailability()
+    }
+
+    func redo() {
+        guard undoManager?.canRedo == true else { return }
+        undoManager?.redo()
+        refreshUndoAvailability()
     }
 
     func beginSaving() {
@@ -134,5 +218,62 @@ final class PDFDocumentSession: ObservableObject {
         else { return }
 
         viewBridge.go(to: searchResults[selectedSearchResultIndex])
+    }
+
+    private func setMarkup(
+        _ records: [PDFMarkupRecord],
+        isAdded: Bool,
+        actionName: String
+    ) {
+        for record in records {
+            if isAdded {
+                record.page.addAnnotation(record.annotation)
+            } else {
+                record.page.removeAnnotation(record.annotation)
+            }
+        }
+
+        if let undoManager {
+            let createsUndoGroup = !undoManager.isUndoing && !undoManager.isRedoing
+            if createsUndoGroup {
+                undoManager.beginUndoGrouping()
+            }
+            undoManager.registerUndo(withTarget: self) { session in
+                session.setMarkup(records, isAdded: !isAdded, actionName: actionName)
+            }
+            undoManager.setActionName(actionName)
+            if createsUndoGroup {
+                undoManager.endUndoGrouping()
+            }
+        }
+
+        let changeType: NSDocument.ChangeType
+        if undoManager?.isUndoing == true {
+            changeType = .changeUndone
+        } else if undoManager?.isRedoing == true {
+            changeType = .changeRedone
+        } else {
+            changeType = .changeDone
+        }
+        onDocumentChange?(changeType)
+        refreshUndoAvailability()
+
+        DispatchQueue.main.async { [weak self] in
+            self?.refreshUndoAvailability()
+        }
+    }
+
+    private func refreshUndoAvailability() {
+        canUndo = undoManager?.canUndo ?? false
+        canRedo = undoManager?.canRedo ?? false
+    }
+
+    private func removeUndoObservers() {
+        undoObservers.forEach(NotificationCenter.default.removeObserver)
+        undoObservers.removeAll()
+    }
+
+    deinit {
+        removeUndoObservers()
     }
 }
