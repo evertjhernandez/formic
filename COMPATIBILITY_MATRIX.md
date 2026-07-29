@@ -24,6 +24,7 @@ Milestone 0 must prove that supported documents can be opened, edited, saved, cl
 | --- | --- | --- |
 | Searchable vector text save/reopen | Pass | Case-insensitive PDFKit search finds generated text after serialization. |
 | Text-note save/reopen | Pass with normalization | Contents, author, and subtype persist. PDFKit may create an associated popup annotation and normalize the note icon to a 24×24 rectangle. |
+| Moved text-note save/reopen | Pass | Crop-box-clamped position persists after serialization, and movement supports undo/redo as one document edit. |
 | Page reorder, duplicate, rotate, and delete | Pass | Page order, text, media-box size, and rotation persist after serialization. |
 | Invalid data rejection | Pass | Invalid bytes do not produce a `PDFDocument`. |
 

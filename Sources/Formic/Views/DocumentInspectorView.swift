@@ -117,6 +117,13 @@ struct DocumentInspectorView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if selection.canMove {
+                Label("Drag this note on the page to reposition it.", systemImage: "hand.draw")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             HStack {
                 Button("Clear Selection") {
                     session.selectAnnotation(nil)

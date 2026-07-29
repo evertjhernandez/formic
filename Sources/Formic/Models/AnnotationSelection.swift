@@ -11,6 +11,7 @@ struct AnnotationSelection {
     let isNote: Bool
     let canEditAppearance: Bool
     let canEditText: Bool
+    let canMove: Bool
     let canDelete: Bool
 
     init(
@@ -29,6 +30,7 @@ struct AnnotationSelection {
         let isEditable = allowsCommenting && !annotation.isReadOnly
         canEditAppearance = isEditable && !annotation.hasAppearanceStream
         canEditText = isEditable && isNote
+        canMove = isEditable && isNote
         canDelete = isEditable && annotation.type != "Link" && annotation.type != "Widget"
     }
 

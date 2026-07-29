@@ -21,12 +21,14 @@ final class PDFDocumentSession: ObservableObject {
     let viewBridge = PDFViewBridge()
     private let markupService = PDFTextMarkupService()
     private let noteService = PDFNoteService()
+    private let geometryService = PDFAnnotationGeometryService()
     private var saveStateResetWorkItem: DispatchWorkItem?
     private weak var undoManager: UndoManager?
     private var onDocumentChange: ((NSDocument.ChangeType) -> Void)?
     private var undoObservers: [NSObjectProtocol] = []
     private weak var selectedAnnotation: PDFAnnotation?
     private weak var selectedAnnotationPage: PDFPage?
+    private var annotationMove: AnnotationMove?
 
     var pageCount: Int {
         document?.pageCount ?? 0
@@ -61,11 +63,16 @@ final class PDFDocumentSession: ObservableObject {
         annotationSelection != nil
     }
 
+    var selectedPDFAnnotation: PDFAnnotation? {
+        selectedAnnotation
+    }
+
     func replaceDocument(_ document: PDFDocument) {
         saveStateResetWorkItem?.cancel()
         selectedAnnotation?.isHighlighted = false
         selectedAnnotation = nil
         selectedAnnotationPage = nil
+        annotationMove = nil
         annotationSelection = nil
         annotationTool = .selection
         self.document = document
@@ -228,6 +235,58 @@ final class PDFDocumentSession: ObservableObject {
             for: annotation,
             on: page
         )
+    }
+
+    func beginMovingSelectedAnnotation(
+        _ annotation: PDFAnnotation,
+        on page: PDFPage
+    ) -> NSRect? {
+        guard annotation === selectedAnnotation,
+              page === selectedAnnotationPage,
+              annotationSelection?.canMove == true,
+              page.annotations.contains(where: { $0 === annotation })
+        else { return nil }
+
+        let bounds = annotation.bounds
+        annotationMove = AnnotationMove(
+            annotation: annotation,
+            page: page,
+            originalBounds: bounds
+        )
+        return bounds
+    }
+
+    @discardableResult
+    func previewSelectedAnnotationMove(to proposedBounds: NSRect) -> NSRect? {
+        guard let annotationMove else { return nil }
+
+        let pageBounds = annotationMove.page.bounds(for: .cropBox)
+        let updatedBounds = geometryService.clampedBounds(proposedBounds, inside: pageBounds)
+        annotationMove.annotation.bounds = updatedBounds
+        refreshAnnotationSelection()
+        viewBridge.refresh()
+        return updatedBounds
+    }
+
+    func finishMovingSelectedAnnotation() {
+        guard let annotationMove else { return }
+        self.annotationMove = nil
+
+        let updatedBounds = annotationMove.annotation.bounds
+        guard updatedBounds != annotationMove.originalBounds else { return }
+
+        annotationMove.annotation.modificationDate = Date()
+        registerUndo(actionName: "Move Annotation") { session in
+            session.setAnnotationBounds(
+                annotationMove.originalBounds,
+                for: annotationMove.annotation,
+                on: annotationMove.page,
+                actionName: "Move Annotation"
+            )
+        }
+        publishDocumentChange()
+        refreshAnnotationSelection()
+        viewBridge.refresh()
     }
 
     func deleteSelectedAnnotation() {
@@ -440,6 +499,35 @@ final class PDFDocumentSession: ObservableObject {
         viewBridge.refresh()
     }
 
+    private func setAnnotationBounds(
+        _ bounds: NSRect,
+        for annotation: PDFAnnotation,
+        on page: PDFPage,
+        actionName: String
+    ) {
+        let previousBounds = annotation.bounds
+        annotation.bounds = geometryService.clampedBounds(
+            bounds,
+            inside: page.bounds(for: .cropBox)
+        )
+        annotation.modificationDate = Date()
+
+        registerUndo(actionName: actionName) { session in
+            session.setAnnotationBounds(
+                previousBounds,
+                for: annotation,
+                on: page,
+                actionName: actionName
+            )
+        }
+
+        publishDocumentChange()
+        if annotation === selectedAnnotation {
+            refreshAnnotationSelection()
+        }
+        viewBridge.refresh()
+    }
+
     private func setAnnotation(
         _ annotation: PDFAnnotation,
         on page: PDFPage,
@@ -542,4 +630,10 @@ final class PDFDocumentSession: ObservableObject {
     deinit {
         removeUndoObservers()
     }
+}
+
+private struct AnnotationMove {
+    let annotation: PDFAnnotation
+    let page: PDFPage
+    let originalBounds: NSRect
 }

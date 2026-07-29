@@ -320,6 +320,9 @@ struct WorkspaceRibbonView: View {
         if session.annotationTool == .note {
             return "Click anywhere on a page"
         }
+        if session.annotationSelection?.canMove == true {
+            return "Drag it on the page or edit Details"
+        }
         if session.hasSelectedAnnotation {
             return "Edit it in the Details panel"
         }
