@@ -2,7 +2,7 @@
 
 Formic is a private, native macOS PDF workspace built with SwiftUI, AppKit, and PDFKit.
 
-The current implementation is the Milestone 0 compatibility prototype. It can open PDFs in independent document windows, render and navigate pages, search text, inspect basic document properties, and exercise native save/print behavior.
+The current implementation can open PDFs in independent document windows, render and navigate pages, search text, create and edit text-markup annotations, inspect document and annotation properties, and use native save, copy, export, and print workflows.
 
 ## Requirements
 

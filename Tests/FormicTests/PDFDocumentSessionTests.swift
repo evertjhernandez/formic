@@ -111,6 +111,133 @@ final class PDFDocumentSessionTests: XCTestCase {
         }
     }
 
+    func testSelectingAnnotationPublishesInspectorProperties() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 2)
+        let page = try XCTUnwrap(document.page(at: 1))
+        let annotation = PDFAnnotation(
+            bounds: NSRect(x: 72, y: 640, width: 120, height: 20),
+            forType: .highlight,
+            withProperties: nil
+        )
+        annotation.color = NSColor.systemGreen.withAlphaComponent(0.5)
+        annotation.userName = "Formic Tester"
+        page.addAnnotation(annotation)
+
+        session.replaceDocument(document)
+        session.selectAnnotation(annotation)
+
+        let selection = try XCTUnwrap(session.annotationSelection)
+        XCTAssertEqual(selection.typeName, "Highlight")
+        XCTAssertEqual(selection.pageNumber, 2)
+        XCTAssertEqual(selection.author, "Formic Tester")
+        XCTAssertTrue(selection.canEditAppearance)
+        XCTAssertTrue(selection.canDelete)
+
+        session.selectAnnotation(nil)
+        XCTAssertNil(session.annotationSelection)
+    }
+
+    func testAnnotationColorChangesSupportUndoAndRedo() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 1)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let annotation = PDFAnnotation(
+            bounds: NSRect(x: 72, y: 640, width: 120, height: 20),
+            forType: .highlight,
+            withProperties: nil
+        )
+        annotation.color = NSColor.systemYellow.withAlphaComponent(0.5)
+        page.addAnnotation(annotation)
+        let undoManager = UndoManager()
+        var changes: [NSDocument.ChangeType] = []
+
+        session.replaceDocument(document)
+        session.configureEditing(undoManager: undoManager) { changes.append($0) }
+        session.selectAnnotation(annotation)
+        session.setSelectedAnnotationColor(.systemBlue)
+
+        assertRGB(annotation.color, matches: .systemBlue)
+        XCTAssertEqual(annotation.color.alphaComponent, 0.5, accuracy: 0.01)
+        XCTAssertEqual(changes.last, .changeDone)
+
+        session.undo()
+        assertRGB(annotation.color, matches: .systemYellow)
+
+        session.redo()
+        assertRGB(annotation.color, matches: .systemBlue)
+        XCTAssertEqual(changes.last, .changeRedone)
+    }
+
+    func testDeletingSelectedAnnotationSupportsUndoAndRedo() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 1)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let annotation = PDFAnnotation(
+            bounds: NSRect(x: 72, y: 640, width: 120, height: 20),
+            forType: .underline,
+            withProperties: nil
+        )
+        page.addAnnotation(annotation)
+        let undoManager = UndoManager()
+
+        session.replaceDocument(document)
+        session.configureEditing(undoManager: undoManager) { _ in }
+        session.selectAnnotation(annotation)
+        session.deleteSelectedAnnotation()
+
+        XCTAssertTrue(page.annotations.isEmpty)
+        XCTAssertNil(session.annotationSelection)
+        XCTAssertTrue(session.canUndo)
+
+        session.undo()
+        XCTAssertEqual(page.annotations.count, 1)
+        XCTAssertNotNil(session.annotationSelection)
+        XCTAssertTrue(session.canRedo)
+
+        session.redo()
+        XCTAssertTrue(page.annotations.isEmpty)
+        XCTAssertNil(session.annotationSelection)
+    }
+
+    func testLinkAnnotationCannotBeDeletedFromAnnotationInspector() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 1)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let annotation = PDFAnnotation(
+            bounds: NSRect(x: 72, y: 640, width: 120, height: 20),
+            forType: .link,
+            withProperties: nil
+        )
+        page.addAnnotation(annotation)
+
+        session.replaceDocument(document)
+        session.configureEditing(undoManager: UndoManager()) { _ in }
+        session.selectAnnotation(annotation)
+
+        XCTAssertFalse(try XCTUnwrap(session.annotationSelection).canDelete)
+        session.deleteSelectedAnnotation()
+        XCTAssertEqual(page.annotations.count, 1)
+    }
+
+    private func assertRGB(
+        _ actual: NSColor,
+        matches expected: NSColor,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let actualRGB = actual.usingColorSpace(.deviceRGB),
+              let expectedRGB = expected.usingColorSpace(.deviceRGB)
+        else {
+            XCTFail("Expected RGB-compatible colors", file: file, line: line)
+            return
+        }
+
+        XCTAssertEqual(actualRGB.redComponent, expectedRGB.redComponent, accuracy: 0.01, file: file, line: line)
+        XCTAssertEqual(actualRGB.greenComponent, expectedRGB.greenComponent, accuracy: 0.01, file: file, line: line)
+        XCTAssertEqual(actualRGB.blueComponent, expectedRGB.blueComponent, accuracy: 0.01, file: file, line: line)
+    }
+
     private func makeDocument(pageCount: Int) -> PDFDocument {
         let document = PDFDocument()
 
