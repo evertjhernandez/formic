@@ -9,8 +9,10 @@ final class PDFDocumentSession: ObservableObject {
     @Published private(set) var searchResults: [PDFSelection] = []
     @Published private(set) var selectedSearchResultIndex: Int?
     @Published var sidebarMode: SidebarMode = .thumbnails
+    @Published private(set) var saveState: DocumentSaveState = .idle
 
     let viewBridge = PDFViewBridge()
+    private var saveStateResetWorkItem: DispatchWorkItem?
 
     var pageCount: Int {
         document?.pageCount ?? 0
@@ -34,11 +36,33 @@ final class PDFDocumentSession: ObservableObject {
     }
 
     func replaceDocument(_ document: PDFDocument) {
+        saveStateResetWorkItem?.cancel()
         self.document = document
         currentPageIndex = 0
         searchQuery = ""
         searchResults = []
         selectedSearchResultIndex = nil
+        saveState = .idle
+    }
+
+    func beginSaving() {
+        saveStateResetWorkItem?.cancel()
+        saveState = .saving
+    }
+
+    func finishSaving(with error: Error?) {
+        saveState = error == nil ? .saved : .failed
+
+        let resetWorkItem = DispatchWorkItem { [weak self] in
+            self?.saveState = .idle
+        }
+        saveStateResetWorkItem = resetWorkItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: resetWorkItem)
+    }
+
+    func cancelSaving() {
+        saveStateResetWorkItem?.cancel()
+        saveState = .idle
     }
 
     func setCurrentPage(_ page: PDFPage?) {

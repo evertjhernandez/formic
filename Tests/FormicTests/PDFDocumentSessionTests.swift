@@ -38,6 +38,20 @@ final class PDFDocumentSessionTests: XCTestCase {
         XCTAssertEqual(session.currentPageLabel, "Page 2 of 2")
     }
 
+    func testSaveStateReportsSuccessAndFailure() {
+        let session = PDFDocumentSession()
+
+        session.beginSaving()
+        XCTAssertEqual(session.saveState, .saving)
+
+        session.finishSaving(with: nil)
+        XCTAssertEqual(session.saveState, .saved)
+
+        session.beginSaving()
+        session.finishSaving(with: PDFWorkspaceError.unwritableDocument)
+        XCTAssertEqual(session.saveState, .failed)
+    }
+
     private func makeDocument(pageCount: Int) -> PDFDocument {
         let document = PDFDocument()
 
