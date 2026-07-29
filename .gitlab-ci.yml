@@ -6,8 +6,33 @@
 # Note that environment variables can be set in several places
 # See https://docs.gitlab.com/ci/variables/#cicd-variable-precedence
 stages:
-- test
+  - test
+  - package
+
+variables:
+  FORMIC_MACOS_RUNNER_TAG: "formic-macos"
+
 sast:
   stage: test
+
+package_dmg:
+  stage: package
+  tags:
+    - $FORMIC_MACOS_RUNNER_TAG
+  timeout: 30m
+  script:
+    - test "$(uname -s)" = "Darwin"
+    - swift --version
+    - swift test
+    - FORMIC_VERSION="${CI_COMMIT_TAG#v}" FORMIC_BUILD_NUMBER="$CI_PIPELINE_IID" ./script/package_dmg.sh
+  artifacts:
+    name: "Formic-${CI_COMMIT_TAG}"
+    paths:
+      - dist/Formic-*.dmg
+      - dist/Formic-*.dmg.sha256
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$/'
+
 include:
-- template: Security/SAST.gitlab-ci.yml
+  - template: Security/SAST.gitlab-ci.yml

@@ -51,6 +51,30 @@ macOS can therefore show an unidentified-developer warning after the DMG is
 downloaded. A public release should add Developer ID signing and notarization to
 the same packaging workflow.
 
+## Create a DMG in GitLab CI
+
+The `package_dmg` job creates a downloadable DMG artifact when a version tag is
+pushed. It requires a macOS GitLab runner tagged `formic-macos`, with macOS 14 or
+later and Swift 5.10 or later installed. The default supports a self-managed
+runner; set the project CI/CD variable `FORMIC_MACOS_RUNNER_TAG` to the applicable
+runner tag if a different macOS runner is used.
+
+After the intended release commit is merged into `main`, create a semantic
+version tag such as `v0.1.0` and push it:
+
+```bash
+git switch main
+git pull --ff-only
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The pipeline uses the tag as the application version and the GitLab pipeline IID
+as its build number. The resulting `Formic-0.1.0.dmg` and SHA-256 checksum are
+available from the `package_dmg` job artifacts for 30 days. If the job remains
+pending, confirm that an online runner with the `formic-macos` tag is assigned to
+the project.
+
 ## Current scope
 
 See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the product scope and delivery roadmap, and [COMPATIBILITY_MATRIX.md](COMPATIBILITY_MATRIX.md) for the PDFKit validation gate.
