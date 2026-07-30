@@ -1,0 +1,91 @@
+name: Build and Publish
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build macOS DMG
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Show toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Run tests
+        run: swift test
+
+      - name: Package DMG
+        shell: bash
+        run: |
+          FORMIC_VERSION="0.1.0"
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            FORMIC_VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          FORMIC_VERSION="$FORMIC_VERSION" \
+            FORMIC_BUILD_NUMBER="$GITHUB_RUN_NUMBER" \
+            ./script/package_dmg.sh
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Formic-macOS
+          path: |
+            dist/Formic-*.dmg
+            dist/Formic-*.dmg.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish GitHub Release
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download DMG artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Formic-macOS
+          path: dist
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          RELEASE_NOTES="Unsigned macOS build.
+
+          This build is ad-hoc signed and not notarized. macOS may require approval in Privacy & Security before the first launch."
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              dist/Formic-*.dmg \
+              dist/Formic-*.dmg.sha256 \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              dist/Formic-*.dmg \
+              dist/Formic-*.dmg.sha256 \
+              --title "Formic $GITHUB_REF_NAME" \
+              --notes "$RELEASE_NOTES"
+          fi
