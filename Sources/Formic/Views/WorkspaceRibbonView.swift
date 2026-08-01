@@ -172,10 +172,13 @@ struct WorkspaceRibbonView: View {
                 .disabled(!session.hasUnsavedChanges || session.saveState == .saving)
                 .help(session.hasUnsavedChanges ? "Save changes to this PDF" : "No changes to save")
                 RibbonToolButton("Save a Copy", systemImage: "doc.on.doc", action: saveDocumentCopy)
+                    .disabled(!session.hasDocument)
                     .help("Create an identical PDF without changing the open file")
                 RibbonToolButton("Export", systemImage: "square.and.arrow.up", action: showExportSheet)
+                    .disabled(!session.hasDocument)
                     .help("Create a new PDF, image, or text file")
                 RibbonToolButton("Print", systemImage: "printer", action: printDocument)
+                    .disabled(!session.hasDocument)
             }
 
             RibbonSeparator()

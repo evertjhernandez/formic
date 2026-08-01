@@ -7,15 +7,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.activate(ignoringOtherApps: true)
-
-        DispatchQueue.main.async {
-            guard NSDocumentController.shared.documents.isEmpty else { return }
-            NSDocumentController.shared.openDocument(nil)
-        }
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
-        false
+        true
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -96,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         case #selector(saveCurrentDocument(_:)):
             return currentPDFDocument?.isDocumentEdited == true
         case #selector(saveCurrentDocumentAsCopy(_:)), #selector(exportCurrentDocument(_:)):
-            return currentPDFDocument != nil
+            return currentPDFDocument?.session.hasDocument == true
         case #selector(highlightSelection(_:)),
              #selector(underlineSelection(_:)),
              #selector(strikeOutSelection(_:)):
