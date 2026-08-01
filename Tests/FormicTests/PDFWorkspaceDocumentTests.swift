@@ -322,6 +322,81 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         try? FileManager.default.removeItem(at: destination)
     }
 
+    func testStampsAndMovedPositionSurviveSaveReopen() async throws {
+        let workspaceDocument = PDFWorkspaceDocument()
+        try workspaceDocument.read(from: makePDFData(), ofType: "com.adobe.pdf")
+        workspaceDocument.makeWindowControllers()
+
+        let document = try XCTUnwrap(workspaceDocument.session.document)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let placementPoints = [
+            NSPoint(x: 160, y: 650),
+            NSPoint(x: 310, y: 460),
+            NSPoint(x: 450, y: 280)
+        ]
+
+        for (style, point) in zip(StampAnnotationStyle.allCases, placementPoints) {
+            workspaceDocument.session.activateStampTool(style)
+            workspaceDocument.session.placeStamp(style, on: page, at: point)
+        }
+
+        let approvedStamp = try XCTUnwrap(
+            page.annotations.first(where: { $0.stampName == StampAnnotationStyle.approved.stampName })
+        )
+        workspaceDocument.session.selectAnnotation(approvedStamp)
+        XCTAssertNotNil(
+            workspaceDocument.session.beginMovingSelectedAnnotation(approvedStamp, on: page)
+        )
+        let movedApprovedBounds = try XCTUnwrap(
+            workspaceDocument.session.previewSelectedAnnotationMove(
+                to: approvedStamp.bounds.offsetBy(dx: 70, dy: -50)
+            )
+        )
+        workspaceDocument.session.finishMovingSelectedAnnotation()
+
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("pdf")
+        workspaceDocument.fileURL = destination
+        let saveCompleted = expectation(description: "PDF with stamps saved")
+
+        workspaceDocument.saveFromRibbon(requiresConfirmation: false) { error in
+            XCTAssertNil(error)
+            saveCompleted.fulfill()
+        }
+        await fulfillment(of: [saveCompleted], timeout: 3)
+
+        let reopened = try XCTUnwrap(PDFDocument(url: destination))
+        let reopenedStamps = try XCTUnwrap(reopened.page(at: 0)).annotations
+            .filter { $0.type == "Stamp" }
+        XCTAssertEqual(reopenedStamps.count, StampAnnotationStyle.allCases.count)
+        XCTAssertTrue(reopenedStamps.allSatisfy(\.hasAppearanceStream))
+
+        for style in StampAnnotationStyle.allCases {
+            XCTAssertTrue(
+                reopenedStamps.contains(where: {
+                    normalizedStampName($0.stampName) == style.stampName
+                })
+            )
+        }
+
+        let reopenedApproved = try XCTUnwrap(
+            reopenedStamps.first(where: {
+                normalizedStampName($0.stampName) == StampAnnotationStyle.approved.stampName
+            })
+        )
+        XCTAssertEqual(reopenedApproved.bounds.origin.x, movedApprovedBounds.origin.x, accuracy: 0.1)
+        XCTAssertEqual(reopenedApproved.bounds.origin.y, movedApprovedBounds.origin.y, accuracy: 0.1)
+
+        workspaceDocument.close()
+        try? FileManager.default.removeItem(at: destination)
+    }
+
+    private func normalizedStampName(_ name: String?) -> String? {
+        guard let name else { return nil }
+        return name.hasPrefix("/") ? String(name.dropFirst()) : name
+    }
+
     func testMovedNotePositionSurvivesSaveReopen() async throws {
         let workspaceDocument = PDFWorkspaceDocument()
         try workspaceDocument.read(from: makePDFData(), ofType: "com.adobe.pdf")

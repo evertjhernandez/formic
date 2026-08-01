@@ -124,6 +124,29 @@ enum MainMenu {
 
         menu.addItem(.separator())
 
+        let approvedStamp = menu.addItem(
+            withTitle: "Add Approved Stamp",
+            action: #selector(AppDelegate.activateApprovedStampTool(_:)),
+            keyEquivalent: ""
+        )
+        approvedStamp.target = actionTarget
+
+        let draftStamp = menu.addItem(
+            withTitle: "Add Draft Stamp",
+            action: #selector(AppDelegate.activateDraftStampTool(_:)),
+            keyEquivalent: ""
+        )
+        draftStamp.target = actionTarget
+
+        let confidentialStamp = menu.addItem(
+            withTitle: "Add Confidential Stamp",
+            action: #selector(AppDelegate.activateConfidentialStampTool(_:)),
+            keyEquivalent: ""
+        )
+        confidentialStamp.target = actionTarget
+
+        menu.addItem(.separator())
+
         let highlight = menu.addItem(
             withTitle: "Highlight Selection",
             action: #selector(AppDelegate.highlightSelection(_:)),

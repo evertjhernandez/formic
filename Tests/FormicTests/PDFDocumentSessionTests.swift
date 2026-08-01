@@ -345,6 +345,44 @@ final class PDFDocumentSessionTests: XCTestCase {
         XCTAssertEqual(shape.bounds, movedBounds)
     }
 
+    func testEveryStampStyleCreatesSelectedUndoableAnnotation() throws {
+        for style in StampAnnotationStyle.allCases {
+            let session = PDFDocumentSession()
+            let document = makeDocument(pageCount: 1)
+            let page = try XCTUnwrap(document.page(at: 0))
+            let pageBounds = page.bounds(for: .cropBox)
+            let undoManager = UndoManager()
+
+            session.replaceDocument(document)
+            session.configureEditing(undoManager: undoManager) { _ in }
+            session.activateStampTool(style)
+            session.placeStamp(
+                style,
+                on: page,
+                at: NSPoint(x: pageBounds.midX, y: pageBounds.midY)
+            )
+
+            let stamp = try XCTUnwrap(page.annotations.first)
+            let selection = try XCTUnwrap(session.annotationSelection)
+            XCTAssertEqual(stamp.type, "Stamp")
+            XCTAssertEqual(stamp.stampName, style.stampName)
+            XCTAssertTrue(pageBounds.contains(stamp.bounds))
+            XCTAssertEqual(selection.typeName, "\(style.displayName) stamp")
+            XCTAssertTrue(selection.isStamp)
+            XCTAssertTrue(selection.canMove)
+            XCTAssertTrue(selection.canDelete)
+            XCTAssertEqual(session.annotationTool, .selection)
+
+            session.undo()
+            XCTAssertTrue(page.annotations.isEmpty)
+            XCTAssertNil(session.annotationSelection)
+
+            session.redo()
+            XCTAssertEqual(page.annotations.first?.stampName, style.stampName)
+            XCTAssertTrue(try XCTUnwrap(session.annotationSelection).isStamp)
+        }
+    }
+
     func testEditingSelectedNoteSupportsUndoAndRedo() throws {
         let session = PDFDocumentSession()
         let document = makeDocument(pageCount: 1)

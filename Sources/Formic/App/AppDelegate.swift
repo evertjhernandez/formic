@@ -97,6 +97,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     @objc
+    func activateApprovedStampTool(_ sender: Any?) {
+        currentPDFDocument?.session.activateStampTool(.approved)
+    }
+
+    @objc
+    func activateDraftStampTool(_ sender: Any?) {
+        currentPDFDocument?.session.activateStampTool(.draft)
+    }
+
+    @objc
+    func activateConfidentialStampTool(_ sender: Any?) {
+        currentPDFDocument?.session.activateStampTool(.confidential)
+    }
+
+    @objc
     func deleteSelectedAnnotation(_ sender: Any?) {
         currentPDFDocument?.session.deleteSelectedAnnotation()
     }
@@ -114,7 +129,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         case #selector(activateNoteTool(_:)),
              #selector(activateFreeTextTool(_:)),
              #selector(activateRectangleTool(_:)),
-             #selector(activateOvalTool(_:)):
+             #selector(activateOvalTool(_:)),
+             #selector(activateApprovedStampTool(_:)),
+             #selector(activateDraftStampTool(_:)),
+             #selector(activateConfidentialStampTool(_:)):
             return currentPDFDocument?.session.allowsCommenting == true
         case #selector(deleteSelectedAnnotation(_:)):
             return currentPDFDocument?.session.annotationSelection?.canDelete == true

@@ -12,6 +12,7 @@ struct AnnotationSelection {
     let isFreeText: Bool
     let isTextAnnotation: Bool
     let isShape: Bool
+    let isStamp: Bool
     let canEditAppearance: Bool
     let canEditText: Bool
     let canMove: Bool
@@ -23,12 +24,13 @@ struct AnnotationSelection {
         allowsCommenting: Bool
     ) {
         id = ObjectIdentifier(annotation)
-        typeName = Self.displayName(for: annotation.type)
+        typeName = Self.displayName(for: annotation)
         self.pageNumber = pageNumber
         isNote = annotation.type == "Text"
         isFreeText = annotation.type == "FreeText"
         isTextAnnotation = isNote || isFreeText
         isShape = annotation.type == "Square" || annotation.type == "Circle"
+        isStamp = annotation.type == "Stamp"
         color = (isFreeText ? annotation.fontColor ?? .black : annotation.color)
             .withAlphaComponent(1)
         author = annotation.userName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
@@ -37,7 +39,7 @@ struct AnnotationSelection {
         let isEditable = allowsCommenting && !annotation.isReadOnly
         canEditAppearance = isEditable && !annotation.hasAppearanceStream
         canEditText = isEditable && isTextAnnotation
-        canMove = isEditable && (isTextAnnotation || isShape)
+        canMove = isEditable && (isTextAnnotation || isShape || isStamp)
         canDelete = isEditable && annotation.type != "Link" && annotation.type != "Widget"
     }
 
@@ -57,6 +59,16 @@ struct AnnotationSelection {
         case let type?: return type
         case nil: return "Annotation"
         }
+    }
+
+    private static func displayName(for annotation: PDFAnnotation) -> String {
+        if annotation.type == "Stamp",
+           let stampName = annotation.stampName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !stampName.isEmpty {
+            let displayName = stampName.hasPrefix("/") ? String(stampName.dropFirst()) : stampName
+            return "\(displayName) stamp"
+        }
+        return displayName(for: annotation.type)
     }
 }
 

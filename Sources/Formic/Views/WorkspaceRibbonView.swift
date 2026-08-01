@@ -137,6 +137,21 @@ struct WorkspaceRibbonView: View {
 
             RibbonSeparator()
 
+            RibbonGroup(title: "Stamps") {
+                ForEach(StampAnnotationStyle.allCases) { style in
+                    RibbonToolButton(
+                        style.displayName,
+                        systemImage: style.systemImage,
+                        isActive: session.annotationTool == .stamp(style),
+                        action: { session.toggleStampTool(style) }
+                    )
+                    .disabled(!session.allowsCommenting)
+                    .help(placementToolHelp(.stamp(style)))
+                }
+            }
+
+            RibbonSeparator()
+
             RibbonGroup(title: "Text markup") {
                 ForEach(TextMarkupStyle.allCases) { style in
                     RibbonToolButton(
@@ -327,6 +342,8 @@ struct WorkspaceRibbonView: View {
                 return "Cancel text box placement"
             case .shape(let style):
                 return "Cancel \(style.displayName.lowercased()) placement"
+            case .stamp(let style):
+                return "Cancel \(style.displayName.lowercased()) stamp placement"
             }
         }
         switch tool {
@@ -339,6 +356,8 @@ struct WorkspaceRibbonView: View {
         case .shape(let style):
             let article = style == .oval ? "an" : "a"
             return "Add \(article) \(style.displayName.lowercased()) by clicking on a page"
+        case .stamp(let style):
+            return "Add \(style.article) \(style.displayName.lowercased()) stamp by clicking on a page"
         }
     }
 
