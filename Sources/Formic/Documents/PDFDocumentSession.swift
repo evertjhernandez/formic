@@ -34,6 +34,10 @@ final class PDFDocumentSession: ObservableObject {
         document?.pageCount ?? 0
     }
 
+    var hasDocument: Bool {
+        document != nil
+    }
+
     var currentPageLabel: String {
         guard pageCount > 0 else { return "No pages" }
         return "Page \(currentPageIndex + 1) of \(pageCount)"

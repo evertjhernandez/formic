@@ -25,7 +25,7 @@ final class PDFWorkspaceDocument: NSDocument {
         if let documentStorage {
             session.replaceDocument(documentStorage)
         }
-        session.title = displayName
+        session.title = session.hasDocument ? displayName : "No PDF open"
 
         let rootView = WorkspaceRootView(
             session: session,
@@ -42,7 +42,7 @@ final class PDFWorkspaceDocument: NSDocument {
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
 
-        window.title = displayName
+        window.title = session.hasDocument ? displayName : "Formic"
         window.titleVisibility = .hidden
         window.setContentSize(NSSize(width: 1_240, height: 820))
         window.minSize = NSSize(width: 900, height: 620)
