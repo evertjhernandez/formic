@@ -98,6 +98,14 @@ enum MainMenu {
         addNote.keyEquivalentModifierMask = [.command, .option]
         addNote.target = actionTarget
 
+        let addTextBox = menu.addItem(
+            withTitle: "Add Text Box",
+            action: #selector(AppDelegate.activateFreeTextTool(_:)),
+            keyEquivalent: "t"
+        )
+        addTextBox.keyEquivalentModifierMask = [.command, .option]
+        addTextBox.target = actionTarget
+
         menu.addItem(.separator())
 
         let highlight = menu.addItem(

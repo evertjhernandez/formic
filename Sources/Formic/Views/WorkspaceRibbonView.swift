@@ -112,7 +112,16 @@ struct WorkspaceRibbonView: View {
                     action: session.toggleNoteTool
                 )
                 .disabled(!session.allowsCommenting)
-                .help(noteToolHelp)
+                .help(placementToolHelp(.note))
+
+                RibbonToolButton(
+                    "Text",
+                    systemImage: "character.textbox",
+                    isActive: session.annotationTool == .freeText,
+                    action: session.toggleFreeTextTool
+                )
+                .disabled(!session.allowsCommenting)
+                .help(placementToolHelp(.freeText))
             }
 
             RibbonSeparator()
@@ -136,7 +145,7 @@ struct WorkspaceRibbonView: View {
                     title: selectionStatusTitle,
                     detail: selectionStatusDetail,
                     systemImage: selectionStatusImage,
-                    isReady: session.annotationTool == .note
+                    isReady: session.annotationTool.isPlacementTool
                         || session.canApplyTextMarkup
                         || session.hasSelectedAnnotation
                 )
@@ -293,22 +302,24 @@ struct WorkspaceRibbonView: View {
         return "Apply markup to the selected text"
     }
 
-    private var noteToolHelp: String {
+    private func placementToolHelp(_ tool: AnnotationTool) -> String {
         if !session.allowsCommenting {
             return "This PDF does not allow annotations"
         }
-        if session.annotationTool == .note {
-            return "Cancel note placement"
+        if session.annotationTool == tool {
+            return tool == .note ? "Cancel note placement" : "Cancel text box placement"
         }
-        return "Add a note by clicking on a page"
+        return tool == .note
+            ? "Add a note by clicking on a page"
+            : "Add editable text by clicking on a page"
     }
 
     private var selectionStatusTitle: String {
         if !session.allowsCommenting {
             return "Read-only PDF"
         }
-        if session.annotationTool == .note {
-            return "Place a note"
+        if session.annotationTool.isPlacementTool {
+            return session.annotationTool.placementTitle
         }
         if let annotation = session.annotationSelection {
             return "\(annotation.typeName) selected"
@@ -320,7 +331,7 @@ struct WorkspaceRibbonView: View {
         if !session.allowsCommenting {
             return "Annotations aren't permitted"
         }
-        if session.annotationTool == .note {
+        if session.annotationTool.isPlacementTool {
             return "Click anywhere on a page"
         }
         if session.annotationSelection?.canMove == true {
@@ -336,8 +347,8 @@ struct WorkspaceRibbonView: View {
         if !session.allowsCommenting {
             return "lock.fill"
         }
-        if session.annotationTool == .note {
-            return "note.text.badge.plus"
+        if session.annotationTool.isPlacementTool {
+            return session.annotationTool.systemImage
         }
         if session.hasSelectedAnnotation {
             return "selection.pin.in.out"

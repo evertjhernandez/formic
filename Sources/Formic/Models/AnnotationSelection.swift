@@ -9,6 +9,8 @@ struct AnnotationSelection {
     let author: String?
     let contents: String
     let isNote: Bool
+    let isFreeText: Bool
+    let isTextAnnotation: Bool
     let canEditAppearance: Bool
     let canEditText: Bool
     let canMove: Bool
@@ -22,15 +24,18 @@ struct AnnotationSelection {
         id = ObjectIdentifier(annotation)
         typeName = Self.displayName(for: annotation.type)
         self.pageNumber = pageNumber
-        color = annotation.color.withAlphaComponent(1)
+        isNote = annotation.type == "Text"
+        isFreeText = annotation.type == "FreeText"
+        isTextAnnotation = isNote || isFreeText
+        color = (isFreeText ? annotation.fontColor ?? .black : annotation.color)
+            .withAlphaComponent(1)
         author = annotation.userName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         contents = annotation.contents ?? ""
-        isNote = annotation.type == "Text"
 
         let isEditable = allowsCommenting && !annotation.isReadOnly
         canEditAppearance = isEditable && !annotation.hasAppearanceStream
-        canEditText = isEditable && isNote
-        canMove = isEditable && isNote
+        canEditText = isEditable && isTextAnnotation
+        canMove = isEditable && isTextAnnotation
         canDelete = isEditable && annotation.type != "Link" && annotation.type != "Widget"
     }
 
