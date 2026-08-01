@@ -392,6 +392,66 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         try? FileManager.default.removeItem(at: destination)
     }
 
+    func testInkColorPathAndMovedPositionSurviveSaveReopen() async throws {
+        let workspaceDocument = PDFWorkspaceDocument()
+        try workspaceDocument.read(from: makePDFData(), ofType: "com.adobe.pdf")
+        workspaceDocument.makeWindowControllers()
+
+        let document = try XCTUnwrap(workspaceDocument.session.document)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let points = [
+            NSPoint(x: 130, y: 620),
+            NSPoint(x: 180, y: 665),
+            NSPoint(x: 230, y: 600),
+            NSPoint(x: 285, y: 645)
+        ]
+
+        workspaceDocument.session.activateInkTool()
+        workspaceDocument.session.placeInk(on: page, points: points)
+
+        let ink = try XCTUnwrap(page.annotations.first(where: { $0.type == "Ink" }))
+        workspaceDocument.session.setSelectedAnnotationColor(.systemBlue)
+        XCTAssertNotNil(
+            workspaceDocument.session.beginMovingSelectedAnnotation(ink, on: page)
+        )
+        let movedBounds = try XCTUnwrap(
+            workspaceDocument.session.previewSelectedAnnotationMove(
+                to: ink.bounds.offsetBy(dx: 75, dy: -55)
+            )
+        )
+        workspaceDocument.session.finishMovingSelectedAnnotation()
+
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("pdf")
+        workspaceDocument.fileURL = destination
+        let saveCompleted = expectation(description: "PDF with ink saved")
+
+        workspaceDocument.saveFromRibbon(requiresConfirmation: false) { error in
+            XCTAssertNil(error)
+            saveCompleted.fulfill()
+        }
+        await fulfillment(of: [saveCompleted], timeout: 3)
+
+        let reopened = try XCTUnwrap(PDFDocument(url: destination))
+        let reopenedInk = try XCTUnwrap(
+            reopened.page(at: 0)?.annotations.first(where: { $0.type == "Ink" })
+        )
+        XCTAssertEqual(reopenedInk.paths?.count, 1)
+        XCTAssertEqual(reopenedInk.border?.lineWidth, 3)
+        XCTAssertEqual(reopenedInk.bounds.origin.x, movedBounds.origin.x, accuracy: 0.1)
+        XCTAssertEqual(reopenedInk.bounds.origin.y, movedBounds.origin.y, accuracy: 0.1)
+
+        let reopenedColor = try XCTUnwrap(reopenedInk.color.usingColorSpace(.deviceRGB))
+        let expectedColor = try XCTUnwrap(NSColor.systemBlue.usingColorSpace(.deviceRGB))
+        XCTAssertEqual(reopenedColor.redComponent, expectedColor.redComponent, accuracy: 0.01)
+        XCTAssertEqual(reopenedColor.greenComponent, expectedColor.greenComponent, accuracy: 0.01)
+        XCTAssertEqual(reopenedColor.blueComponent, expectedColor.blueComponent, accuracy: 0.01)
+
+        workspaceDocument.close()
+        try? FileManager.default.removeItem(at: destination)
+    }
+
     private func normalizedStampName(_ name: String?) -> String? {
         guard let name else { return nil }
         return name.hasPrefix("/") ? String(name.dropFirst()) : name

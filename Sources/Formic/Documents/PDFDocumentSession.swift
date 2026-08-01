@@ -24,6 +24,7 @@ final class PDFDocumentSession: ObservableObject {
     private let freeTextService = PDFFreeTextService()
     private let shapeService = PDFShapeService()
     private let stampService = PDFStampService()
+    private let inkService = PDFInkService()
     private let geometryService = PDFAnnotationGeometryService()
     private var saveStateResetWorkItem: DispatchWorkItem?
     private weak var undoManager: UndoManager?
@@ -208,6 +209,14 @@ final class PDFDocumentSession: ObservableObject {
         togglePlacementTool(.stamp(style))
     }
 
+    func activateInkTool() {
+        activatePlacementTool(.ink)
+    }
+
+    func toggleInkTool() {
+        togglePlacementTool(.ink)
+    }
+
     func placeNote(on page: PDFPage, at point: NSPoint) {
         placeAnnotation(.note, on: page, at: point)
     }
@@ -230,6 +239,23 @@ final class PDFDocumentSession: ObservableObject {
         at point: NSPoint
     ) {
         placeAnnotation(.stamp(style), on: page, at: point)
+    }
+
+    func placeInk(on page: PDFPage, points: [NSPoint]) {
+        guard annotationTool == .ink,
+              allowsCommenting,
+              let document,
+              document.index(for: page) != NSNotFound,
+              let annotation = inkService.annotation(on: page, points: points)
+        else { return }
+
+        annotationTool = .selection
+        setAnnotation(
+            annotation,
+            on: page,
+            isPresent: true,
+            actionName: "Add Drawing"
+        )
     }
 
     func setSelectedAnnotationColor(_ color: NSColor) {
@@ -466,6 +492,8 @@ final class PDFDocumentSession: ObservableObject {
         case .stamp(let style):
             annotation = stampService.annotation(style: style, on: page, at: point)
             actionName = "Add \(style.displayName) Stamp"
+        case .ink:
+            return
         }
 
         annotationTool = .selection

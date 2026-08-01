@@ -4,6 +4,7 @@ enum AnnotationTool: Equatable {
     case freeText
     case shape(ShapeAnnotationStyle)
     case stamp(StampAnnotationStyle)
+    case ink
 
     var isPlacementTool: Bool {
         self != .selection
@@ -21,6 +22,8 @@ enum AnnotationTool: Equatable {
             return "Place a \(style.displayName.lowercased())"
         case .stamp(let style):
             return "Place \(style.article) \(style.displayName.lowercased()) stamp"
+        case .ink:
+            return "Draw freehand"
         }
     }
 
@@ -36,6 +39,8 @@ enum AnnotationTool: Equatable {
             return style.systemImage
         case .stamp(let style):
             return style.systemImage
+        case .ink:
+            return "pencil.tip"
         }
     }
 }

@@ -122,6 +122,14 @@ enum MainMenu {
         addOval.keyEquivalentModifierMask = [.command, .option]
         addOval.target = actionTarget
 
+        let addDrawing = menu.addItem(
+            withTitle: "Draw Freehand",
+            action: #selector(AppDelegate.activateInkTool(_:)),
+            keyEquivalent: "d"
+        )
+        addDrawing.keyEquivalentModifierMask = [.command, .option]
+        addDrawing.target = actionTarget
+
         menu.addItem(.separator())
 
         let approvedStamp = menu.addItem(
