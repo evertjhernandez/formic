@@ -133,6 +133,15 @@ struct WorkspaceRibbonView: View {
                     .disabled(!session.allowsCommenting)
                     .help(placementToolHelp(.shape(style)))
                 }
+
+                RibbonToolButton(
+                    "Draw",
+                    systemImage: "pencil.tip",
+                    isActive: session.annotationTool == .ink,
+                    action: session.toggleInkTool
+                )
+                .disabled(!session.allowsCommenting)
+                .help(placementToolHelp(.ink))
             }
 
             RibbonSeparator()
@@ -344,6 +353,8 @@ struct WorkspaceRibbonView: View {
                 return "Cancel \(style.displayName.lowercased()) placement"
             case .stamp(let style):
                 return "Cancel \(style.displayName.lowercased()) stamp placement"
+            case .ink:
+                return "Cancel freehand drawing"
             }
         }
         switch tool {
@@ -358,6 +369,8 @@ struct WorkspaceRibbonView: View {
             return "Add \(article) \(style.displayName.lowercased()) by clicking on a page"
         case .stamp(let style):
             return "Add \(style.article) \(style.displayName.lowercased()) stamp by clicking on a page"
+        case .ink:
+            return "Draw a freehand annotation by dragging on a page"
         }
     }
 
@@ -379,7 +392,9 @@ struct WorkspaceRibbonView: View {
             return "Annotations aren't permitted"
         }
         if session.annotationTool.isPlacementTool {
-            return "Click anywhere on a page"
+            return session.annotationTool == .ink
+                ? "Drag anywhere on a page"
+                : "Click anywhere on a page"
         }
         if session.annotationSelection?.canMove == true {
             return "Drag it on the page or edit Details"
@@ -556,7 +571,7 @@ private struct RibbonSelectionStatus: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .frame(width: 190, height: 36, alignment: .leading)
+        .frame(width: 176, height: 36, alignment: .leading)
         .padding(.horizontal, 10)
         .background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .combine)

@@ -32,7 +32,12 @@ struct PDFCanvasView: NSViewRepresentable {
                 session?.placeShape(style, on: page, at: point)
             case .stamp(let style):
                 session?.placeStamp(style, on: page, at: point)
+            case .ink:
+                break
             }
+        }
+        pdfView.onInkPlacement = { [weak session] page, points in
+            session?.placeInk(on: page, points: points)
         }
         pdfView.onAnnotationMoveBegan = { [weak session] annotation, page in
             session?.beginMovingSelectedAnnotation(annotation, on: page)
@@ -119,6 +124,7 @@ struct PDFCanvasView: NSViewRepresentable {
 private final class AnnotationEditingPDFView: PDFView {
     var onAnnotationSelection: ((PDFAnnotation?) -> Void)?
     var onAnnotationPlacement: ((AnnotationTool, PDFPage, NSPoint) -> Void)?
+    var onInkPlacement: ((PDFPage, [NSPoint]) -> Void)?
     var onAnnotationMoveBegan: ((PDFAnnotation, PDFPage) -> NSRect?)?
     var onAnnotationMoveChanged: ((NSRect) -> NSRect?)?
     var onAnnotationMoveEnded: (() -> Void)?
@@ -140,6 +146,7 @@ private final class AnnotationEditingPDFView: PDFView {
 
     private let selectionOverlay = AnnotationSelectionOverlayView()
     private var annotationDrag: AnnotationDrag?
+    private var inkStroke: AnnotationInkStroke?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -168,6 +175,16 @@ private final class AnnotationEditingPDFView: PDFView {
         }
         let pagePoint = convert(viewPoint, to: page)
 
+        if annotationTool == .ink {
+            inkStroke = AnnotationInkStroke(
+                page: page,
+                pagePoints: [pagePoint],
+                viewPoints: [viewPoint]
+            )
+            selectionOverlay.inkPreviewPoints = [viewPoint]
+            return
+        }
+
         if annotationTool.isPlacementTool {
             onAnnotationPlacement?(annotationTool, page, pagePoint)
             return
@@ -191,6 +208,21 @@ private final class AnnotationEditingPDFView: PDFView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if var inkStroke {
+            let viewPoint = convert(event.locationInWindow, from: nil)
+            let pagePoint = clampedPagePoint(convert(viewPoint, to: inkStroke.page), on: inkStroke.page)
+            if let previousPoint = inkStroke.pagePoints.last,
+               hypot(pagePoint.x - previousPoint.x, pagePoint.y - previousPoint.y) < 1 {
+                return
+            }
+
+            inkStroke.pagePoints.append(pagePoint)
+            inkStroke.viewPoints.append(convert(pagePoint, from: inkStroke.page))
+            self.inkStroke = inkStroke
+            selectionOverlay.inkPreviewPoints = inkStroke.viewPoints
+            return
+        }
+
         guard var annotationDrag else {
             super.mouseDragged(with: event)
             return
@@ -218,6 +250,20 @@ private final class AnnotationEditingPDFView: PDFView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if var inkStroke {
+            let viewPoint = convert(event.locationInWindow, from: nil)
+            let pagePoint = clampedPagePoint(convert(viewPoint, to: inkStroke.page), on: inkStroke.page)
+            if let previousPoint = inkStroke.pagePoints.last,
+               hypot(pagePoint.x - previousPoint.x, pagePoint.y - previousPoint.y) >= 1 {
+                inkStroke.pagePoints.append(pagePoint)
+            }
+
+            self.inkStroke = nil
+            selectionOverlay.inkPreviewPoints = []
+            onInkPlacement?(inkStroke.page, inkStroke.pagePoints)
+            return
+        }
+
         guard annotationDrag != nil else {
             super.mouseUp(with: event)
             return
@@ -258,6 +304,14 @@ private final class AnnotationEditingPDFView: PDFView {
         selectionOverlay.showsResizeHandles = false
         window?.invalidateCursorRects(for: self)
     }
+
+    private func clampedPagePoint(_ point: NSPoint, on page: PDFPage) -> NSPoint {
+        let bounds = page.bounds(for: .cropBox)
+        return NSPoint(
+            x: min(max(point.x, bounds.minX), bounds.maxX),
+            y: min(max(point.y, bounds.minY), bounds.maxY)
+        )
+    }
 }
 
 private struct AnnotationDrag {
@@ -268,7 +322,17 @@ private struct AnnotationDrag {
     var didMove = false
 }
 
+private struct AnnotationInkStroke {
+    let page: PDFPage
+    var pagePoints: [NSPoint]
+    var viewPoints: [NSPoint]
+}
+
 private final class AnnotationSelectionOverlayView: NSView {
+    var inkPreviewPoints: [NSPoint] = [] {
+        didSet { needsDisplay = true }
+    }
+
     var selectionRect: NSRect = .zero {
         didSet { needsDisplay = true }
     }
@@ -281,6 +345,19 @@ private final class AnnotationSelectionOverlayView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
+        if let firstPoint = inkPreviewPoints.first {
+            let preview = NSBezierPath()
+            preview.lineWidth = 3
+            preview.lineCapStyle = .round
+            preview.lineJoinStyle = .round
+            preview.move(to: firstPoint)
+            for point in inkPreviewPoints.dropFirst() {
+                preview.line(to: point)
+            }
+            NSColor.systemRed.setStroke()
+            preview.stroke()
+        }
+
         guard !selectionRect.isEmpty else { return }
 
         let accent = NSColor(calibratedRed: 0.96, green: 0.32, blue: 0.14, alpha: 1)

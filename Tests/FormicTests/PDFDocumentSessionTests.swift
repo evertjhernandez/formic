@@ -383,6 +383,45 @@ final class PDFDocumentSessionTests: XCTestCase {
         }
     }
 
+    func testFreehandDrawingCreatesSelectedMovableUndoableInkAnnotation() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 1)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let pageBounds = page.bounds(for: .cropBox)
+        let undoManager = UndoManager()
+        let points = [
+            NSPoint(x: 120, y: 620),
+            NSPoint(x: 155, y: 650),
+            NSPoint(x: 200, y: 610),
+            NSPoint(x: 245, y: 640)
+        ]
+
+        session.replaceDocument(document)
+        session.configureEditing(undoManager: undoManager) { _ in }
+        session.activateInkTool()
+        session.placeInk(on: page, points: points)
+
+        let ink = try XCTUnwrap(page.annotations.first)
+        let selection = try XCTUnwrap(session.annotationSelection)
+        XCTAssertEqual(ink.type, "Ink")
+        XCTAssertEqual(ink.paths?.count, 1)
+        XCTAssertEqual(ink.border?.lineWidth, 3)
+        XCTAssertTrue(pageBounds.contains(ink.bounds))
+        XCTAssertEqual(selection.typeName, "Drawing")
+        XCTAssertTrue(selection.isInk)
+        XCTAssertTrue(selection.canMove)
+        XCTAssertTrue(selection.canDelete)
+        XCTAssertEqual(session.annotationTool, .selection)
+
+        session.undo()
+        XCTAssertTrue(page.annotations.isEmpty)
+        XCTAssertNil(session.annotationSelection)
+
+        session.redo()
+        XCTAssertEqual(page.annotations.first?.type, "Ink")
+        XCTAssertTrue(try XCTUnwrap(session.annotationSelection).isInk)
+    }
+
     func testEditingSelectedNoteSupportsUndoAndRedo() throws {
         let session = PDFDocumentSession()
         let document = makeDocument(pageCount: 1)
