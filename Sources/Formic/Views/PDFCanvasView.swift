@@ -30,6 +30,8 @@ struct PDFCanvasView: NSViewRepresentable {
                 session?.placeFreeText(on: page, at: point)
             case .shape(let style):
                 session?.placeShape(style, on: page, at: point)
+            case .stamp(let style):
+                session?.placeStamp(style, on: page, at: point)
             }
         }
         pdfView.onAnnotationMoveBegan = { [weak session] annotation, page in
