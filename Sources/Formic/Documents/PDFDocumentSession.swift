@@ -21,6 +21,7 @@ final class PDFDocumentSession: ObservableObject {
     let viewBridge = PDFViewBridge()
     private let markupService = PDFTextMarkupService()
     private let noteService = PDFNoteService()
+    private let freeTextService = PDFFreeTextService()
     private let geometryService = PDFAnnotationGeometryService()
     private var saveStateResetWorkItem: DispatchWorkItem?
     private weak var undoManager: UndoManager?
@@ -174,36 +175,27 @@ final class PDFDocumentSession: ObservableObject {
     }
 
     func activateNoteTool() {
-        guard allowsCommenting else { return }
-        annotationTool = .note
-        selectAnnotation(nil)
-        viewBridge.clearSelection()
-        hasTextSelection = false
+        activatePlacementTool(.note)
     }
 
     func toggleNoteTool() {
-        if annotationTool == .note {
-            annotationTool = .selection
-        } else {
-            activateNoteTool()
-        }
+        togglePlacementTool(.note)
+    }
+
+    func activateFreeTextTool() {
+        activatePlacementTool(.freeText)
+    }
+
+    func toggleFreeTextTool() {
+        togglePlacementTool(.freeText)
     }
 
     func placeNote(on page: PDFPage, at point: NSPoint) {
-        guard annotationTool == .note,
-              allowsCommenting,
-              let document,
-              document.index(for: page) != NSNotFound
-        else { return }
+        placeAnnotation(.note, on: page, at: point)
+    }
 
-        annotationTool = .selection
-        let annotation = noteService.annotation(on: page, at: point)
-        setAnnotation(
-            annotation,
-            on: page,
-            isPresent: true,
-            actionName: "Add Note"
-        )
+    func placeFreeText(on page: PDFPage, at point: NSPoint) {
+        placeAnnotation(.freeText, on: page, at: point)
     }
 
     func setSelectedAnnotationColor(_ color: NSColor) {
@@ -212,8 +204,9 @@ final class PDFDocumentSession: ObservableObject {
               annotationSelection?.canEditAppearance == true
         else { return }
 
-        let updatedColor = color.withAlphaComponent(annotation.color.alphaComponent)
-        guard !updatedColor.withAlphaComponent(1).isEqual(annotation.color.withAlphaComponent(1)) else { return }
+        let currentColor = appearanceColor(for: annotation)
+        let updatedColor = color.withAlphaComponent(currentColor.alphaComponent)
+        guard !updatedColor.withAlphaComponent(1).isEqual(currentColor.withAlphaComponent(1)) else { return }
         setAnnotationColor(
             updatedColor,
             for: annotation,
@@ -222,7 +215,7 @@ final class PDFDocumentSession: ObservableObject {
         )
     }
 
-    func updateSelectedNote(contents: String, author: String) {
+    func updateSelectedAnnotationText(contents: String, author: String) {
         guard let annotation = selectedAnnotation,
               let page = selectedAnnotationPage,
               annotationSelection?.canEditText == true
@@ -237,7 +230,8 @@ final class PDFDocumentSession: ObservableObject {
             contents: updatedContents,
             author: updatedAuthor,
             for: annotation,
-            on: page
+            on: page,
+            actionName: annotation.type == "FreeText" ? "Edit Text Box" : "Edit Note"
         )
     }
 
@@ -394,6 +388,55 @@ final class PDFDocumentSession: ObservableObject {
         viewBridge.zoomToFit()
     }
 
+    private func activatePlacementTool(_ tool: AnnotationTool) {
+        guard tool.isPlacementTool, allowsCommenting else { return }
+        annotationTool = tool
+        selectAnnotation(nil)
+        viewBridge.clearSelection()
+        hasTextSelection = false
+    }
+
+    private func togglePlacementTool(_ tool: AnnotationTool) {
+        if annotationTool == tool {
+            annotationTool = .selection
+        } else {
+            activatePlacementTool(tool)
+        }
+    }
+
+    private func placeAnnotation(
+        _ tool: AnnotationTool,
+        on page: PDFPage,
+        at point: NSPoint
+    ) {
+        guard annotationTool == tool,
+              allowsCommenting,
+              let document,
+              document.index(for: page) != NSNotFound
+        else { return }
+
+        let annotation: PDFAnnotation
+        let actionName: String
+        switch tool {
+        case .selection:
+            return
+        case .note:
+            annotation = noteService.annotation(on: page, at: point)
+            actionName = "Add Note"
+        case .freeText:
+            annotation = freeTextService.annotation(on: page, at: point)
+            actionName = "Add Text Box"
+        }
+
+        annotationTool = .selection
+        setAnnotation(
+            annotation,
+            on: page,
+            isPresent: true,
+            actionName: actionName
+        )
+    }
+
     private func showSelectedSearchResult() {
         guard let selectedSearchResultIndex,
               searchResults.indices.contains(selectedSearchResultIndex)
@@ -455,8 +498,12 @@ final class PDFDocumentSession: ObservableObject {
         on page: PDFPage,
         actionName: String
     ) {
-        let previousColor = annotation.color
-        annotation.color = color
+        let previousColor = appearanceColor(for: annotation)
+        if annotation.type == "FreeText" {
+            annotation.fontColor = color
+        } else {
+            annotation.color = color
+        }
         annotation.modificationDate = Date()
 
         registerUndo(actionName: actionName) { session in
@@ -479,7 +526,8 @@ final class PDFDocumentSession: ObservableObject {
         contents: String?,
         author: String?,
         for annotation: PDFAnnotation,
-        on page: PDFPage
+        on page: PDFPage,
+        actionName: String
     ) {
         let previousContents = annotation.contents
         let previousAuthor = annotation.userName
@@ -487,12 +535,13 @@ final class PDFDocumentSession: ObservableObject {
         annotation.userName = author
         annotation.modificationDate = Date()
 
-        registerUndo(actionName: "Edit Note") { session in
+        registerUndo(actionName: actionName) { session in
             session.setAnnotationText(
                 contents: previousContents,
                 author: previousAuthor,
                 for: annotation,
-                on: page
+                on: page,
+                actionName: actionName
             )
         }
 
@@ -501,6 +550,13 @@ final class PDFDocumentSession: ObservableObject {
             refreshAnnotationSelection()
         }
         viewBridge.refresh()
+    }
+
+    private func appearanceColor(for annotation: PDFAnnotation) -> NSColor {
+        if annotation.type == "FreeText" {
+            return annotation.fontColor ?? .black
+        }
+        return annotation.color
     }
 
     private func setAnnotationBounds(

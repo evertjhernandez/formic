@@ -62,18 +62,20 @@ struct DocumentInspectorView: View {
             InspectorRow(label: "Type", value: selection.typeName)
             InspectorRow(label: "Page", value: "\(selection.pageNumber)")
 
-            if !selection.isNote {
+            if !selection.isTextAnnotation {
                 InspectorRow(label: "Author", value: selection.author ?? "Not specified")
             }
 
             Divider()
 
-            if selection.isNote {
-                NoteAnnotationEditor(
+            if selection.isTextAnnotation {
+                TextAnnotationEditor(
+                    fieldTitle: selection.isNote ? "NOTE" : "TEXT",
+                    placeholder: selection.isNote ? "Write a note…" : "Write text…",
                     contents: selection.contents,
                     author: selection.author ?? "",
                     isEditable: selection.canEditText,
-                    applyChanges: session.updateSelectedNote
+                    applyChanges: session.updateSelectedAnnotationText
                 )
                 .id(selection.id)
 
@@ -118,7 +120,7 @@ struct DocumentInspectorView: View {
             }
 
             if selection.canMove {
-                Label("Drag this note on the page to reposition it.", systemImage: "hand.draw")
+                Label("Drag this annotation on the page to reposition it.", systemImage: "hand.draw")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -149,7 +151,9 @@ struct DocumentInspectorView: View {
     }
 }
 
-private struct NoteAnnotationEditor: View {
+private struct TextAnnotationEditor: View {
+    let fieldTitle: String
+    let placeholder: String
     let contents: String
     let author: String
     let isEditable: Bool
@@ -159,11 +163,15 @@ private struct NoteAnnotationEditor: View {
     @State private var draftAuthor: String
 
     init(
+        fieldTitle: String,
+        placeholder: String,
         contents: String,
         author: String,
         isEditable: Bool,
         applyChanges: @escaping (String, String) -> Void
     ) {
+        self.fieldTitle = fieldTitle
+        self.placeholder = placeholder
         self.contents = contents
         self.author = author
         self.isEditable = isEditable
@@ -175,9 +183,9 @@ private struct NoteAnnotationEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 6) {
-                inspectorLabel("NOTE")
+                inspectorLabel(fieldTitle)
 
-                TextField("Write a note…", text: $draftContents, axis: .vertical)
+                TextField(placeholder, text: $draftContents, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.system(size: 11))
                     .lineLimit(4...8)

@@ -82,6 +82,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     @objc
+    func activateFreeTextTool(_ sender: Any?) {
+        currentPDFDocument?.session.activateFreeTextTool()
+    }
+
+    @objc
     func deleteSelectedAnnotation(_ sender: Any?) {
         currentPDFDocument?.session.deleteSelectedAnnotation()
     }
@@ -96,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
              #selector(underlineSelection(_:)),
              #selector(strikeOutSelection(_:)):
             return currentPDFDocument?.session.canApplyTextMarkup == true
-        case #selector(activateNoteTool(_:)):
+        case #selector(activateNoteTool(_:)), #selector(activateFreeTextTool(_:)):
             return currentPDFDocument?.session.allowsCommenting == true
         case #selector(deleteSelectedAnnotation(_:)):
             return currentPDFDocument?.session.annotationSelection?.canDelete == true

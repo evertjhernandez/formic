@@ -20,8 +20,15 @@ struct PDFCanvasView: NSViewRepresentable {
         pdfView.onAnnotationSelection = { [weak session] annotation in
             session?.selectAnnotation(annotation)
         }
-        pdfView.onNotePlacement = { [weak session] page, point in
-            session?.placeNote(on: page, at: point)
+        pdfView.onAnnotationPlacement = { [weak session] tool, page, point in
+            switch tool {
+            case .selection:
+                break
+            case .note:
+                session?.placeNote(on: page, at: point)
+            case .freeText:
+                session?.placeFreeText(on: page, at: point)
+            }
         }
         pdfView.onAnnotationMoveBegan = { [weak session] annotation, page in
             session?.beginMovingSelectedAnnotation(annotation, on: page)
@@ -32,7 +39,7 @@ struct PDFCanvasView: NSViewRepresentable {
         pdfView.onAnnotationMoveEnded = { [weak session] in
             session?.finishMovingSelectedAnnotation()
         }
-        pdfView.isPlacingNote = session.annotationTool == .note
+        pdfView.annotationTool = session.annotationTool
         pdfView.selectedAnnotation = session.selectedPDFAnnotation
         pdfView.canMoveSelectedAnnotation = session.annotationSelection?.canMove == true
 
@@ -48,7 +55,7 @@ struct PDFCanvasView: NSViewRepresentable {
         }
 
         if let pdfView = pdfView as? AnnotationEditingPDFView {
-            pdfView.isPlacingNote = session.annotationTool == .note
+            pdfView.annotationTool = session.annotationTool
             pdfView.selectedAnnotation = session.selectedPDFAnnotation
             pdfView.canMoveSelectedAnnotation = session.annotationSelection?.canMove == true
         }
@@ -107,7 +114,7 @@ struct PDFCanvasView: NSViewRepresentable {
 
 private final class AnnotationEditingPDFView: PDFView {
     var onAnnotationSelection: ((PDFAnnotation?) -> Void)?
-    var onNotePlacement: ((PDFPage, NSPoint) -> Void)?
+    var onAnnotationPlacement: ((AnnotationTool, PDFPage, NSPoint) -> Void)?
     var onAnnotationMoveBegan: ((PDFAnnotation, PDFPage) -> NSRect?)?
     var onAnnotationMoveChanged: ((NSRect) -> NSRect?)?
     var onAnnotationMoveEnded: (() -> Void)?
@@ -120,9 +127,9 @@ private final class AnnotationEditingPDFView: PDFView {
             window?.invalidateCursorRects(for: self)
         }
     }
-    var isPlacingNote = false {
+    var annotationTool: AnnotationTool = .selection {
         didSet {
-            guard oldValue != isPlacingNote else { return }
+            guard oldValue != annotationTool else { return }
             window?.invalidateCursorRects(for: self)
         }
     }
@@ -149,7 +156,7 @@ private final class AnnotationEditingPDFView: PDFView {
     override func mouseDown(with event: NSEvent) {
         let viewPoint = convert(event.locationInWindow, from: nil)
         guard let page = page(for: viewPoint, nearest: false) else {
-            if !isPlacingNote {
+            if !annotationTool.isPlacementTool {
                 onAnnotationSelection?(nil)
                 super.mouseDown(with: event)
             }
@@ -157,8 +164,8 @@ private final class AnnotationEditingPDFView: PDFView {
         }
         let pagePoint = convert(viewPoint, to: page)
 
-        if isPlacingNote {
-            onNotePlacement?(page, pagePoint)
+        if annotationTool.isPlacementTool {
+            onAnnotationPlacement?(annotationTool, page, pagePoint)
             return
         }
 
@@ -221,7 +228,7 @@ private final class AnnotationEditingPDFView: PDFView {
 
     override func resetCursorRects() {
         super.resetCursorRects()
-        if isPlacingNote {
+        if annotationTool.isPlacementTool {
             addCursorRect(bounds, cursor: .crosshair)
         } else if canMoveSelectedAnnotation,
                   !selectionOverlay.selectionRect.isEmpty {

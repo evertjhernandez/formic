@@ -154,7 +154,7 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         XCTAssertEqual(workspaceDocument.session.annotationTool, .note)
         workspaceDocument.session.placeNote(on: page, at: NSPoint(x: 180, y: 560))
         XCTAssertNotNil(page.annotations.first(where: { $0.type == "Text" }))
-        workspaceDocument.session.updateSelectedNote(
+        workspaceDocument.session.updateSelectedAnnotationText(
             contents: "Review this section before publishing.\nConfirm the final wording.",
             author: "Formic Reviewer"
         )
@@ -195,6 +195,65 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         XCTAssertEqual(note.bounds.origin.y, 548, accuracy: 0.1)
         XCTAssertFalse(workspaceDocument.isDocumentEdited)
         XCTAssertFalse(workspaceDocument.session.hasUnsavedChanges)
+
+        workspaceDocument.close()
+        try? FileManager.default.removeItem(at: destination)
+    }
+
+    func testFreeTextEditsAndPositionSurviveSaveReopen() async throws {
+        let workspaceDocument = PDFWorkspaceDocument()
+        try workspaceDocument.read(from: makePDFData(), ofType: "com.adobe.pdf")
+        workspaceDocument.makeWindowControllers()
+
+        let document = try XCTUnwrap(workspaceDocument.session.document)
+        let page = try XCTUnwrap(document.page(at: 0))
+        workspaceDocument.session.activateFreeTextTool()
+        workspaceDocument.session.placeFreeText(on: page, at: NSPoint(x: 220, y: 560))
+
+        let textBox = try XCTUnwrap(
+            page.annotations.first(where: { $0.type == "FreeText" })
+        )
+        workspaceDocument.session.updateSelectedAnnotationText(
+            contents: "Review before publishing",
+            author: "Formic Reviewer"
+        )
+        workspaceDocument.session.setSelectedAnnotationColor(.systemBlue)
+        XCTAssertNotNil(
+            workspaceDocument.session.beginMovingSelectedAnnotation(textBox, on: page)
+        )
+        let movedBounds = try XCTUnwrap(
+            workspaceDocument.session.previewSelectedAnnotationMove(
+                to: textBox.bounds.offsetBy(dx: 70, dy: -45)
+            )
+        )
+        workspaceDocument.session.finishMovingSelectedAnnotation()
+
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("pdf")
+        workspaceDocument.fileURL = destination
+        let saveCompleted = expectation(description: "PDF with free text saved")
+
+        workspaceDocument.saveFromRibbon(requiresConfirmation: false) { error in
+            XCTAssertNil(error)
+            saveCompleted.fulfill()
+        }
+        await fulfillment(of: [saveCompleted], timeout: 3)
+
+        let reopened = try XCTUnwrap(PDFDocument(url: destination))
+        let reopenedTextBox = try XCTUnwrap(
+            reopened.page(at: 0)?.annotations.first(where: { $0.type == "FreeText" })
+        )
+        XCTAssertEqual(reopenedTextBox.contents, "Review before publishing")
+        XCTAssertEqual(reopenedTextBox.userName, "Formic Reviewer")
+        XCTAssertEqual(reopenedTextBox.bounds.origin.x, movedBounds.origin.x, accuracy: 0.1)
+        XCTAssertEqual(reopenedTextBox.bounds.origin.y, movedBounds.origin.y, accuracy: 0.1)
+
+        let reopenedFontColor = try XCTUnwrap(reopenedTextBox.fontColor?.usingColorSpace(.deviceRGB))
+        let expectedFontColor = try XCTUnwrap(NSColor.systemBlue.usingColorSpace(.deviceRGB))
+        XCTAssertEqual(reopenedFontColor.redComponent, expectedFontColor.redComponent, accuracy: 0.01)
+        XCTAssertEqual(reopenedFontColor.greenComponent, expectedFontColor.greenComponent, accuracy: 0.01)
+        XCTAssertEqual(reopenedFontColor.blueComponent, expectedFontColor.blueComponent, accuracy: 0.01)
 
         workspaceDocument.close()
         try? FileManager.default.removeItem(at: destination)

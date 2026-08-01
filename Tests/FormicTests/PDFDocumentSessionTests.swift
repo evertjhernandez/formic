@@ -196,6 +196,85 @@ final class PDFDocumentSessionTests: XCTestCase {
         XCTAssertLessThanOrEqual(noteBounds.maxY, pageBounds.maxY)
     }
 
+    func testPlacingFreeTextCreatesSelectedUndoableAnnotation() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 1)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let pageBounds = page.bounds(for: .cropBox)
+        let undoManager = UndoManager()
+        var changes: [NSDocument.ChangeType] = []
+
+        session.replaceDocument(document)
+        session.configureEditing(undoManager: undoManager) { changes.append($0) }
+        session.activateFreeTextTool()
+
+        XCTAssertEqual(session.annotationTool, .freeText)
+        session.placeFreeText(on: page, at: NSPoint(x: pageBounds.midX, y: pageBounds.midY))
+
+        let textBox = try XCTUnwrap(page.annotations.first(where: { $0.type == "FreeText" }))
+        let selection = try XCTUnwrap(session.annotationSelection)
+        XCTAssertEqual(textBox.contents, "Text")
+        XCTAssertEqual(textBox.font?.pointSize, 16)
+        XCTAssertTrue(pageBounds.contains(textBox.bounds))
+        XCTAssertEqual(session.annotationTool, .selection)
+        XCTAssertTrue(selection.isFreeText)
+        XCTAssertTrue(selection.isTextAnnotation)
+        XCTAssertTrue(selection.canEditText)
+        XCTAssertTrue(selection.canMove)
+        XCTAssertEqual(changes.last, .changeDone)
+
+        session.undo()
+        XCTAssertTrue(page.annotations.isEmpty)
+        XCTAssertNil(session.annotationSelection)
+
+        session.redo()
+        XCTAssertEqual(page.annotations.filter { $0.type == "FreeText" }.count, 1)
+        XCTAssertTrue(try XCTUnwrap(session.annotationSelection).isFreeText)
+    }
+
+    func testEditingFreeTextAndFontColorSupportsUndoAndRedo() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 1)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let textBox = PDFAnnotation(
+            bounds: NSRect(x: 72, y: 620, width: 180, height: 52),
+            forType: .freeText,
+            withProperties: nil
+        )
+        textBox.contents = "Original text"
+        textBox.userName = "Original Author"
+        textBox.fontColor = .black
+        textBox.color = .clear
+        page.addAnnotation(textBox)
+        let undoManager = UndoManager()
+
+        session.replaceDocument(document)
+        session.configureEditing(undoManager: undoManager) { _ in }
+        session.selectAnnotation(textBox)
+        session.updateSelectedAnnotationText(
+            contents: "Updated text box",
+            author: "Updated Author"
+        )
+        session.setSelectedAnnotationColor(.systemBlue)
+
+        XCTAssertEqual(textBox.contents, "Updated text box")
+        XCTAssertEqual(textBox.userName, "Updated Author")
+        assertRGB(try XCTUnwrap(textBox.fontColor), matches: .systemBlue)
+        XCTAssertEqual(textBox.color.alphaComponent, 0, accuracy: 0.01)
+
+        session.undo()
+        assertRGB(try XCTUnwrap(textBox.fontColor), matches: .black)
+
+        session.undo()
+        XCTAssertEqual(textBox.contents, "Original text")
+        XCTAssertEqual(textBox.userName, "Original Author")
+
+        session.redo()
+        session.redo()
+        XCTAssertEqual(textBox.contents, "Updated text box")
+        assertRGB(try XCTUnwrap(textBox.fontColor), matches: .systemBlue)
+    }
+
     func testEditingSelectedNoteSupportsUndoAndRedo() throws {
         let session = PDFDocumentSession()
         let document = makeDocument(pageCount: 1)
@@ -214,7 +293,7 @@ final class PDFDocumentSessionTests: XCTestCase {
         session.configureEditing(undoManager: undoManager) { _ in }
         session.selectAnnotation(note)
         let updatedContents = "Updated note\nSecond line"
-        session.updateSelectedNote(contents: updatedContents, author: "Updated Author")
+        session.updateSelectedAnnotationText(contents: updatedContents, author: "Updated Author")
 
         XCTAssertEqual(note.contents, updatedContents)
         XCTAssertEqual(note.userName, "Updated Author")
