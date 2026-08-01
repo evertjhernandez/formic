@@ -275,6 +275,76 @@ final class PDFDocumentSessionTests: XCTestCase {
         assertRGB(try XCTUnwrap(textBox.fontColor), matches: .systemBlue)
     }
 
+    func testEveryShapeStyleCreatesSelectedUndoableAnnotation() throws {
+        for style in ShapeAnnotationStyle.allCases {
+            let session = PDFDocumentSession()
+            let document = makeDocument(pageCount: 1)
+            let page = try XCTUnwrap(document.page(at: 0))
+            let pageBounds = page.bounds(for: .cropBox)
+            let undoManager = UndoManager()
+
+            session.replaceDocument(document)
+            session.configureEditing(undoManager: undoManager) { _ in }
+            session.activateShapeTool(style)
+            session.placeShape(
+                style,
+                on: page,
+                at: NSPoint(x: pageBounds.midX, y: pageBounds.midY)
+            )
+
+            let expectedType = String(style.annotationSubtype.rawValue.dropFirst())
+            let shape = try XCTUnwrap(page.annotations.first)
+            let selection = try XCTUnwrap(session.annotationSelection)
+            XCTAssertEqual(shape.type, expectedType)
+            XCTAssertEqual(try XCTUnwrap(shape.border).lineWidth, 2)
+            XCTAssertEqual(try XCTUnwrap(shape.interiorColor).alphaComponent, 0, accuracy: 0.01)
+            XCTAssertTrue(pageBounds.contains(shape.bounds))
+            XCTAssertTrue(selection.isShape)
+            XCTAssertTrue(selection.canMove)
+            XCTAssertTrue(selection.canDelete)
+            XCTAssertEqual(session.annotationTool, .selection)
+
+            session.undo()
+            XCTAssertTrue(page.annotations.isEmpty)
+            XCTAssertNil(session.annotationSelection)
+
+            session.redo()
+            XCTAssertEqual(page.annotations.first?.type, expectedType)
+            XCTAssertTrue(try XCTUnwrap(session.annotationSelection).isShape)
+        }
+    }
+
+    func testMovingSelectedShapeClampsToPageAndSupportsUndo() throws {
+        let session = PDFDocumentSession()
+        let document = makeDocument(pageCount: 1)
+        let page = try XCTUnwrap(document.page(at: 0))
+        let pageBounds = page.bounds(for: .cropBox)
+        let undoManager = UndoManager()
+
+        session.replaceDocument(document)
+        session.configureEditing(undoManager: undoManager) { _ in }
+        session.activateShapeTool(.rectangle)
+        session.placeShape(.rectangle, on: page, at: NSPoint(x: 160, y: 640))
+
+        let shape = try XCTUnwrap(page.annotations.first)
+        let originalBounds = shape.bounds
+        XCTAssertNotNil(session.beginMovingSelectedAnnotation(shape, on: page))
+        let movedBounds = try XCTUnwrap(
+            session.previewSelectedAnnotationMove(
+                to: originalBounds.offsetBy(dx: 2_000, dy: 2_000)
+            )
+        )
+        session.finishMovingSelectedAnnotation()
+
+        XCTAssertEqual(movedBounds.maxX, pageBounds.maxX, accuracy: 0.1)
+        XCTAssertEqual(movedBounds.maxY, pageBounds.maxY, accuracy: 0.1)
+
+        session.undo()
+        XCTAssertEqual(shape.bounds, originalBounds)
+        session.redo()
+        XCTAssertEqual(shape.bounds, movedBounds)
+    }
+
     func testEditingSelectedNoteSupportsUndoAndRedo() throws {
         let session = PDFDocumentSession()
         let document = makeDocument(pageCount: 1)

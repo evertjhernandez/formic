@@ -87,6 +87,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     @objc
+    func activateRectangleTool(_ sender: Any?) {
+        currentPDFDocument?.session.activateShapeTool(.rectangle)
+    }
+
+    @objc
+    func activateOvalTool(_ sender: Any?) {
+        currentPDFDocument?.session.activateShapeTool(.oval)
+    }
+
+    @objc
     func deleteSelectedAnnotation(_ sender: Any?) {
         currentPDFDocument?.session.deleteSelectedAnnotation()
     }
@@ -101,7 +111,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
              #selector(underlineSelection(_:)),
              #selector(strikeOutSelection(_:)):
             return currentPDFDocument?.session.canApplyTextMarkup == true
-        case #selector(activateNoteTool(_:)), #selector(activateFreeTextTool(_:)):
+        case #selector(activateNoteTool(_:)),
+             #selector(activateFreeTextTool(_:)),
+             #selector(activateRectangleTool(_:)),
+             #selector(activateOvalTool(_:)):
             return currentPDFDocument?.session.allowsCommenting == true
         case #selector(deleteSelectedAnnotation(_:)):
             return currentPDFDocument?.session.annotationSelection?.canDelete == true

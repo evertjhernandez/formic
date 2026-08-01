@@ -22,6 +22,7 @@ final class PDFDocumentSession: ObservableObject {
     private let markupService = PDFTextMarkupService()
     private let noteService = PDFNoteService()
     private let freeTextService = PDFFreeTextService()
+    private let shapeService = PDFShapeService()
     private let geometryService = PDFAnnotationGeometryService()
     private var saveStateResetWorkItem: DispatchWorkItem?
     private weak var undoManager: UndoManager?
@@ -190,12 +191,28 @@ final class PDFDocumentSession: ObservableObject {
         togglePlacementTool(.freeText)
     }
 
+    func activateShapeTool(_ style: ShapeAnnotationStyle) {
+        activatePlacementTool(.shape(style))
+    }
+
+    func toggleShapeTool(_ style: ShapeAnnotationStyle) {
+        togglePlacementTool(.shape(style))
+    }
+
     func placeNote(on page: PDFPage, at point: NSPoint) {
         placeAnnotation(.note, on: page, at: point)
     }
 
     func placeFreeText(on page: PDFPage, at point: NSPoint) {
         placeAnnotation(.freeText, on: page, at: point)
+    }
+
+    func placeShape(
+        _ style: ShapeAnnotationStyle,
+        on page: PDFPage,
+        at point: NSPoint
+    ) {
+        placeAnnotation(.shape(style), on: page, at: point)
     }
 
     func setSelectedAnnotationColor(_ color: NSColor) {
@@ -426,6 +443,9 @@ final class PDFDocumentSession: ObservableObject {
         case .freeText:
             annotation = freeTextService.annotation(on: page, at: point)
             actionName = "Add Text Box"
+        case .shape(let style):
+            annotation = shapeService.annotation(style: style, on: page, at: point)
+            actionName = "Add \(style.displayName)"
         }
 
         annotationTool = .selection

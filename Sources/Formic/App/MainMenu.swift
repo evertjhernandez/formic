@@ -106,6 +106,22 @@ enum MainMenu {
         addTextBox.keyEquivalentModifierMask = [.command, .option]
         addTextBox.target = actionTarget
 
+        let addRectangle = menu.addItem(
+            withTitle: "Add Rectangle",
+            action: #selector(AppDelegate.activateRectangleTool(_:)),
+            keyEquivalent: "r"
+        )
+        addRectangle.keyEquivalentModifierMask = [.command, .option]
+        addRectangle.target = actionTarget
+
+        let addOval = menu.addItem(
+            withTitle: "Add Oval",
+            action: #selector(AppDelegate.activateOvalTool(_:)),
+            keyEquivalent: "o"
+        )
+        addOval.keyEquivalentModifierMask = [.command, .option]
+        addOval.target = actionTarget
+
         menu.addItem(.separator())
 
         let highlight = menu.addItem(

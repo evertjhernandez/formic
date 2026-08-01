@@ -11,6 +11,7 @@ struct AnnotationSelection {
     let isNote: Bool
     let isFreeText: Bool
     let isTextAnnotation: Bool
+    let isShape: Bool
     let canEditAppearance: Bool
     let canEditText: Bool
     let canMove: Bool
@@ -27,6 +28,7 @@ struct AnnotationSelection {
         isNote = annotation.type == "Text"
         isFreeText = annotation.type == "FreeText"
         isTextAnnotation = isNote || isFreeText
+        isShape = annotation.type == "Square" || annotation.type == "Circle"
         color = (isFreeText ? annotation.fontColor ?? .black : annotation.color)
             .withAlphaComponent(1)
         author = annotation.userName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
@@ -35,7 +37,7 @@ struct AnnotationSelection {
         let isEditable = allowsCommenting && !annotation.isReadOnly
         canEditAppearance = isEditable && !annotation.hasAppearanceStream
         canEditText = isEditable && isTextAnnotation
-        canMove = isEditable && isTextAnnotation
+        canMove = isEditable && (isTextAnnotation || isShape)
         canDelete = isEditable && annotation.type != "Link" && annotation.type != "Widget"
     }
 

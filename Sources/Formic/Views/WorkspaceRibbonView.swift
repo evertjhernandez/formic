@@ -122,6 +122,17 @@ struct WorkspaceRibbonView: View {
                 )
                 .disabled(!session.allowsCommenting)
                 .help(placementToolHelp(.freeText))
+
+                ForEach(ShapeAnnotationStyle.allCases) { style in
+                    RibbonToolButton(
+                        style.displayName,
+                        systemImage: style.systemImage,
+                        isActive: session.annotationTool == .shape(style),
+                        action: { session.toggleShapeTool(style) }
+                    )
+                    .disabled(!session.allowsCommenting)
+                    .help(placementToolHelp(.shape(style)))
+                }
             }
 
             RibbonSeparator()
@@ -307,11 +318,28 @@ struct WorkspaceRibbonView: View {
             return "This PDF does not allow annotations"
         }
         if session.annotationTool == tool {
-            return tool == .note ? "Cancel note placement" : "Cancel text box placement"
+            switch tool {
+            case .selection:
+                return ""
+            case .note:
+                return "Cancel note placement"
+            case .freeText:
+                return "Cancel text box placement"
+            case .shape(let style):
+                return "Cancel \(style.displayName.lowercased()) placement"
+            }
         }
-        return tool == .note
-            ? "Add a note by clicking on a page"
-            : "Add editable text by clicking on a page"
+        switch tool {
+        case .selection:
+            return ""
+        case .note:
+            return "Add a note by clicking on a page"
+        case .freeText:
+            return "Add editable text by clicking on a page"
+        case .shape(let style):
+            let article = style == .oval ? "an" : "a"
+            return "Add \(article) \(style.displayName.lowercased()) by clicking on a page"
+        }
     }
 
     private var selectionStatusTitle: String {

@@ -259,6 +259,69 @@ final class PDFWorkspaceDocumentTests: XCTestCase {
         try? FileManager.default.removeItem(at: destination)
     }
 
+    func testShapesAndMovedPositionSurviveSaveReopen() async throws {
+        let workspaceDocument = PDFWorkspaceDocument()
+        try workspaceDocument.read(from: makePDFData(), ofType: "com.adobe.pdf")
+        workspaceDocument.makeWindowControllers()
+
+        let document = try XCTUnwrap(workspaceDocument.session.document)
+        let page = try XCTUnwrap(document.page(at: 0))
+
+        workspaceDocument.session.activateShapeTool(.rectangle)
+        workspaceDocument.session.placeShape(.rectangle, on: page, at: NSPoint(x: 180, y: 600))
+        let rectangle = try XCTUnwrap(page.annotations.first(where: { $0.type == "Square" }))
+        workspaceDocument.session.setSelectedAnnotationColor(.systemBlue)
+        XCTAssertNotNil(
+            workspaceDocument.session.beginMovingSelectedAnnotation(rectangle, on: page)
+        )
+        let movedRectangleBounds = try XCTUnwrap(
+            workspaceDocument.session.previewSelectedAnnotationMove(
+                to: rectangle.bounds.offsetBy(dx: 80, dy: -60)
+            )
+        )
+        workspaceDocument.session.finishMovingSelectedAnnotation()
+
+        workspaceDocument.session.activateShapeTool(.oval)
+        workspaceDocument.session.placeShape(.oval, on: page, at: NSPoint(x: 420, y: 360))
+        workspaceDocument.session.setSelectedAnnotationColor(.systemGreen)
+
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("pdf")
+        workspaceDocument.fileURL = destination
+        let saveCompleted = expectation(description: "PDF with shapes saved")
+
+        workspaceDocument.saveFromRibbon(requiresConfirmation: false) { error in
+            XCTAssertNil(error)
+            saveCompleted.fulfill()
+        }
+        await fulfillment(of: [saveCompleted], timeout: 3)
+
+        let reopened = try XCTUnwrap(PDFDocument(url: destination))
+        let reopenedPage = try XCTUnwrap(reopened.page(at: 0))
+        let reopenedRectangle = try XCTUnwrap(
+            reopenedPage.annotations.first(where: { $0.type == "Square" })
+        )
+        let reopenedOval = try XCTUnwrap(
+            reopenedPage.annotations.first(where: { $0.type == "Circle" })
+        )
+        XCTAssertEqual(reopenedRectangle.bounds.origin.x, movedRectangleBounds.origin.x, accuracy: 0.1)
+        XCTAssertEqual(reopenedRectangle.bounds.origin.y, movedRectangleBounds.origin.y, accuracy: 0.1)
+        XCTAssertEqual(reopenedRectangle.border?.lineWidth, 2)
+        XCTAssertEqual(reopenedOval.border?.lineWidth, 2)
+
+        let rectangleColor = try XCTUnwrap(reopenedRectangle.color.usingColorSpace(.deviceRGB))
+        let expectedRectangleColor = try XCTUnwrap(NSColor.systemBlue.usingColorSpace(.deviceRGB))
+        XCTAssertEqual(rectangleColor.blueComponent, expectedRectangleColor.blueComponent, accuracy: 0.01)
+
+        let ovalColor = try XCTUnwrap(reopenedOval.color.usingColorSpace(.deviceRGB))
+        let expectedOvalColor = try XCTUnwrap(NSColor.systemGreen.usingColorSpace(.deviceRGB))
+        XCTAssertEqual(ovalColor.greenComponent, expectedOvalColor.greenComponent, accuracy: 0.01)
+
+        workspaceDocument.close()
+        try? FileManager.default.removeItem(at: destination)
+    }
+
     func testMovedNotePositionSurvivesSaveReopen() async throws {
         let workspaceDocument = PDFWorkspaceDocument()
         try workspaceDocument.read(from: makePDFData(), ofType: "com.adobe.pdf")
